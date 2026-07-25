@@ -70,6 +70,12 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
      organiser staff see their applicants' names. Used by `/shows/[showId]`,
      `/dashboard` (My Applications), and
      `/dashboard/shows/[showId]/applications`.
+   - `0014_show_details_editing_and_logo.sql` — adds `shows.logo_path` and
+     a public `show-logos` Storage bucket (the `shows` UPDATE policy for
+     editing already existed since `0003`). Used by the new "Details" tab
+     at `/dashboard/shows/[showId]/details`, and the logo is rendered
+     across `/dashboard`, `/dashboard/organisers/[organiserId]`, every
+     show-management tab, and `/shows`/`/shows/[showId]`.
 
 ### Dev server
 

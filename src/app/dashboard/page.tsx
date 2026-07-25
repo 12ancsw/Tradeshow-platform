@@ -31,12 +31,19 @@ export default async function DashboardPage() {
           supabase.from("organisers").select("id, name, slug, status").eq("id", organiserId).single(),
           supabase
             .from("shows")
-            .select("id, name, start_date, end_date, venue_name")
+            .select("id, name, start_date, end_date, venue_name, logo_path")
             .eq("organiser_id", organiserId)
             .order("start_date", { ascending: true }),
         ]);
 
-        return { organiserId, organiser, shows: shows ?? [] };
+        const showsWithLogoUrl = (shows ?? []).map(({ logo_path, ...show }) => ({
+          ...show,
+          logo_url: logo_path
+            ? supabase.storage.from("show-logos").getPublicUrl(logo_path).data.publicUrl
+            : null,
+        }));
+
+        return { organiserId, organiser, shows: showsWithLogoUrl };
       }),
     ),
     isVendor

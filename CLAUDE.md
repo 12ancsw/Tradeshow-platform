@@ -79,7 +79,7 @@ assuming an automated payment webhook will flip it.
   `users.name`, and every `user_roles` row), used by `/dashboard`.
 - `src/lib/actions/` — Server Actions shared across routes:
   `organisers.ts` (`createOrganiser`, `assignOrganiserStaff`), `shows.ts`
-  (`createShow`), `booth-types.ts` (`createBoothType`, `updateBoothType`,
+  (`createShow`, `updateShow`, `uploadShowLogo`), `booth-types.ts` (`createBoothType`, `updateBoothType`,
   `deleteBoothType`), `booths.ts` (`createBooth`, `updateBooth`,
   `updateBoothPosition`), `add-ons.ts` (`createAddOn`, `updateAddOn`,
   `deleteAddOn`), `floorplans.ts` (`uploadFloorplan`), `island-types.ts`
@@ -104,7 +104,8 @@ assuming an automated payment webhook will flip it.
   `booth-group-form.tsx`, `subvendor-list.tsx`, `subvendor-form.tsx`,
   `subvendor-invite-claim.tsx`, `release-phase-manager.tsx`,
   `release-phase-form.tsx`, `read-only-floorplan.tsx`, `apply-form.tsx`,
-  `application-review.tsx`, `my-applications.tsx`, `payment-proof-form.tsx`
+  `application-review.tsx`, `my-applications.tsx`, `payment-proof-form.tsx`,
+  `show-edit-form.tsx`, `show-logo-upload-form.tsx`
   — used across `/dashboard`, `/dashboard/organisers/[organiserId]`,
   `/dashboard/shows/[showId]/*`, `/subvendor-invite/[subvendorId]`,
   `/shows`, and `/shows/[showId]`.
@@ -173,7 +174,22 @@ above) picks which console's content renders, per the architecture doc's
   >= start_date` enforced by a check constraint), `venue_name`,
   `payment_instructions` (free text), `active_floorplan_version_id`
   (nullable, FK added in `0004_booth_types_booths_and_floorplans.sql` once
-  `floorplan_versions` existed to reference).
+  `floorplan_versions` existed to reference), `logo_path` (nullable,
+  `0014_show_details_editing_and_logo.sql`).
+- **Editing a show and its logo** (`/dashboard/shows/[showId]/details`,
+  the first tab, `show-edit-form.tsx`/`show-logo-upload-form.tsx`): the
+  `shows` UPDATE RLS policy already permitted this since `0003` — only an
+  edit form was missing (`updateShow` in `src/lib/actions/shows.ts`).
+  The logo uses the same public-bucket-plus-`can_manage_show`-storage-policy
+  pattern as `floorplans`/`vendor-logos` (bucket `show-logos`, path
+  `{show_id}/{random}.{ext}`, replacing uploads a new file rather than
+  overwriting). It's rendered everywhere a show is referenced today: the
+  `ShowList` component (organiser's own shows on `/dashboard` and the
+  admin's `/dashboard/organisers/[organiserId]` drill-down), the shared
+  header in `/dashboard/shows/[showId]/layout.tsx` (visible across every
+  show-management tab), and the vendor-facing `/shows` list and
+  `/shows/[showId]` detail page. Attendee/VIP views don't exist yet, but
+  `shows.logo_path` is there for them to read once they're built.
 - **RLS**: `public.is_platform_admin()` and `public.is_organiser_staff_for(organiser_id)`
   are `security definer` helper functions (avoid recursive RLS lookups
   against `user_roles`, same pattern as the removed `is_platform_admin()`
@@ -616,8 +632,10 @@ what was actually asked for:
   detail page (create organisers, create shows anywhere, assign
   `organiser_staff` by email), and `organiser_staff`'s own "Shows" section
   in `/dashboard`, both surfaced through the existing role switcher rather
-  than as separate routes. Not yet done: editing organisers/shows after
-  creation.
+  than as separate routes. Editing a show's details and uploading its
+  logo is also done now (see Editing a show and its logo above,
+  `0014_show_details_editing_and_logo.sql`) — organisers are still not
+  editable after creation.
 - **Booth types, booths, add-ons, and floorplan tagging** — done. See
   Booth Types, Booths, Add-ons, and Floorplans above: the
   `/dashboard/shows/[showId]/*` tab screens let

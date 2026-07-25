@@ -39,9 +39,16 @@ export default async function OrganiserDetailPage({
 
   const { data: shows } = await supabase
     .from("shows")
-    .select("id, name, start_date, end_date, venue_name")
+    .select("id, name, start_date, end_date, venue_name, logo_path")
     .eq("organiser_id", organiserId)
     .order("start_date", { ascending: true });
+
+  const showsWithLogoUrl = (shows ?? []).map(({ logo_path, ...show }) => ({
+    ...show,
+    logo_url: logo_path
+      ? supabase.storage.from("show-logos").getPublicUrl(logo_path).data.publicUrl
+      : null,
+  }));
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -66,7 +73,7 @@ export default async function OrganiserDetailPage({
 
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Shows</h2>
-          <ShowList shows={shows ?? []} />
+          <ShowList shows={showsWithLogoUrl} />
         </section>
 
         <section className="flex flex-col gap-2 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">

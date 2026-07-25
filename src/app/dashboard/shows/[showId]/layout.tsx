@@ -22,13 +22,17 @@ export default async function ShowLayout({
 
   const { data: show } = await supabase
     .from("shows")
-    .select("id, name, start_date, end_date, venue_name")
+    .select("id, name, start_date, end_date, venue_name, logo_path")
     .eq("id", showId)
     .single();
 
   if (!show) {
     notFound();
   }
+
+  const logoUrl = show.logo_path
+    ? supabase.storage.from("show-logos").getPublicUrl(show.logo_path).data.publicUrl
+    : null;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -39,11 +43,17 @@ export default async function ShowLayout({
         </Link>
       </header>
 
-      <div className="flex flex-col gap-1 px-4 pt-6 pb-4">
-        <h1 className="text-lg font-semibold">{show.name}</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {show.start_date} – {show.end_date} · {show.venue_name}
-        </p>
+      <div className="flex items-center gap-3 px-4 pt-6 pb-4">
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="" className="h-12 w-12 flex-shrink-0 rounded object-cover" />
+        ) : null}
+        <div className="flex flex-col gap-1">
+          <h1 className="text-lg font-semibold">{show.name}</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {show.start_date} – {show.end_date} · {show.venue_name}
+          </p>
+        </div>
       </div>
 
       <div className="px-4">

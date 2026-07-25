@@ -16,7 +16,14 @@ const ROLE_LABELS: Record<AppRole, string> = {
 };
 
 type Organiser = { id: string; name: string; slug: string; status: string };
-type Show = { id: string; name: string; start_date: string; end_date: string; venue_name: string };
+type Show = {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  venue_name: string;
+  logo_url?: string | null;
+};
 type OrganiserStaffEntry = { organiserId: string; organiser: Organiser | null; shows: Show[] };
 type Application = {
   id: string;

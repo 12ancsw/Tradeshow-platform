@@ -5,8 +5,15 @@ export default async function ShowsPage() {
   const supabase = await createClient();
   const { data: shows } = await supabase
     .from("shows")
-    .select("id, name, start_date, end_date, venue_name")
+    .select("id, name, start_date, end_date, venue_name, logo_path")
     .order("start_date", { ascending: true });
+
+  const showsWithLogoUrl = (shows ?? []).map(({ logo_path, ...show }) => ({
+    ...show,
+    logo_url: logo_path
+      ? supabase.storage.from("show-logos").getPublicUrl(logo_path).data.publicUrl
+      : null,
+  }));
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -19,17 +26,27 @@ export default async function ShowsPage() {
 
       <main className="flex flex-1 flex-col gap-4 px-4 py-6">
         <h1 className="text-lg font-semibold">Shows</h1>
-        {shows && shows.length > 0 ? (
+        {showsWithLogoUrl.length > 0 ? (
           <ul className="flex flex-col gap-2">
-            {shows.map((show) => (
+            {showsWithLogoUrl.map((show) => (
               <li key={show.id}>
                 <Link
                   href={`/shows/${show.id}`}
-                  className="flex flex-col gap-1 rounded-lg border border-zinc-300 px-4 py-3 dark:border-zinc-700"
+                  className="flex items-center gap-3 rounded-lg border border-zinc-300 px-4 py-3 dark:border-zinc-700"
                 >
-                  <span className="font-medium">{show.name}</span>
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {show.start_date} – {show.end_date} · {show.venue_name}
+                  {show.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={show.logo_url}
+                      alt=""
+                      className="h-10 w-10 flex-shrink-0 rounded object-cover"
+                    />
+                  ) : null}
+                  <span className="flex flex-col gap-1">
+                    <span className="font-medium">{show.name}</span>
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                      {show.start_date} – {show.end_date} · {show.venue_name}
+                    </span>
                   </span>
                 </Link>
               </li>
