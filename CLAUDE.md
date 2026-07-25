@@ -258,7 +258,11 @@ inventory. All four live on a new per-show page,
   them, sub-slots sit close together and need to stay legible/tappable);
   `standard`/`corner` pins render at a third of that size (h-5 → ~6.67px)
   since there are usually many more of them and they'd otherwise clutter
-  the floorplan — zoom in to place or reselect those precisely.
+  the floorplan — zoom in to place or reselect those precisely. The
+  booth-picker dropdown only lists unplaced booths, so it shrinks as
+  tagging progresses instead of staying a full, ever-growing show roster;
+  repositioning an already-placed booth is done by tapping its pin
+  directly on the floorplan, not through the dropdown.
 - **Deliberate simplifications** vs. the architecture doc's fuller model
   (§2): no islands (`BoothGroup`/`parent_group_id`/`island_layout_template`
   — a booth type of category `island` doesn't auto-generate sub-slots, you

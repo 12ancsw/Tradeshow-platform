@@ -43,7 +43,8 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
   const [zoom, setZoom] = useState(MIN_ZOOM);
   const [isPending, startTransition] = useTransition();
 
-  const unplacedCount = booths.filter((booth) => booth.map_x === null).length;
+  const unplacedBooths = booths.filter((booth) => booth.map_x === null);
+  const unplacedCount = unplacedBooths.length;
   const selectedBooth = booths.find((booth) => booth.id === selectedBoothId);
 
   function selectBooth(boothId: string) {
@@ -119,18 +120,26 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
           className="rounded-lg border border-zinc-300 px-4 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
         >
           <option value="">Choose a booth…</option>
-          {booths.map((booth) => (
+          {unplacedBooths.map((booth) => (
             <option key={booth.id} value={booth.id}>
               {booth.organiser_ref}
-              {booth.map_x === null ? " (unplaced)" : ""}
             </option>
           ))}
+          {selectedBooth && selectedBooth.map_x !== null ? (
+            <option key={selectedBooth.id} value={selectedBooth.id}>
+              {selectedBooth.organiser_ref} (placed — tap a pin to reposition)
+            </option>
+          ) : null}
         </select>
         {unplacedCount > 0 ? (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {unplacedCount} booth{unplacedCount === 1 ? "" : "s"} not yet placed.
           </p>
-        ) : null}
+        ) : (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            All booths placed — tap a pin on the floorplan to reposition it.
+          </p>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-2">
