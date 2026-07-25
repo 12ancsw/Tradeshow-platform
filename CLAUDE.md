@@ -79,11 +79,15 @@ assuming an automated payment webhook will flip it.
   `users.name`, and every `user_roles` row), used by `/dashboard`.
 - `src/lib/actions/` — Server Actions shared across routes:
   `organisers.ts` (`createOrganiser`, `assignOrganiserStaff`), `shows.ts`
-  (`createShow`).
+  (`createShow`), `booth-types.ts` (`createBoothType`), `booths.ts`
+  (`createBooth`, `updateBoothPosition`), `floorplans.ts`
+  (`uploadFloorplan`).
 - `src/components/` — shared UI: `status-badge.tsx`, `organiser-list.tsx`,
   `organiser-form.tsx`, `assign-staff-form.tsx`, `show-list.tsx`,
-  `show-form.tsx` — used by both `/dashboard` (as `platform_admin` or
-  `organiser_staff`) and `/dashboard/organisers/[organiserId]`.
+  `show-form.tsx`, `booth-type-list.tsx`, `booth-type-form.tsx`,
+  `booth-list.tsx`, `booth-form.tsx`, `floorplan-upload-form.tsx`,
+  `floorplan-tagger.tsx` — used across `/dashboard`,
+  `/dashboard/organisers/[organiserId]`, and `/dashboard/shows/[showId]`.
 - `supabase/migrations/` — hand-applied SQL migrations (run in the
   Supabase SQL editor, or via the Supabase CLI once one is wired up)
 
@@ -148,7 +152,8 @@ above) picks which console's content renders, per the architecture doc's
 - **`shows`** — `organiser_id`, `name`, `start_date`/`end_date` (`end_date
   >= start_date` enforced by a check constraint), `venue_name`,
   `payment_instructions` (free text), `active_floorplan_version_id`
-  (nullable, unconstrained — no `floorplan_versions` table exists yet).
+  (nullable, FK added in `0004_booth_types_booths_and_floorplans.sql` once
+  `floorplan_versions` existed to reference).
 - **RLS**: `public.is_platform_admin()` and `public.is_organiser_staff_for(organiser_id)`
   are `security definer` helper functions (avoid recursive RLS lookups
   against `user_roles`, same pattern as the removed `is_platform_admin()`
@@ -179,6 +184,49 @@ above) picks which console's content renders, per the architecture doc's
   shows each one's shows separately) — list of shows plus a "Create Show"
   form. No organiser-detail editing or staff-assignment here; that's
   admin-only.
+
+## Booth Types, Booths, and Floorplans
+
+`public.booth_types`, `public.booths`, and `public.floorplan_versions`
+(`supabase/migrations/0004_booth_types_booths_and_floorplans.sql`) let
+`platform_admin`/`organiser_staff` set up a show's booth inventory. All
+three live on a new per-show page, `/dashboard/shows/[showId]`, linked to
+from the show lists on both `/dashboard` (`organiser_staff`'s own shows)
+and `/dashboard/organisers/[organiserId]` (admin's drill-down) — same
+`ShowList` component, now clickable.
+
+- **`booth_types`** — `show_id`, `name`, `category` (`island` | `standard`
+  | `corner`), `base_price`, `selection_fee`. No edit UI yet.
+- **`booths`** — `show_id`, `booth_type_id`, `organiser_ref` (the
+  organiser-defined unique identifier, e.g. "A1" — unique per show),
+  `status` (defaults `available`, matches the architecture doc's enum;
+  nothing transitions it yet, no booking flow exists), `map_x`/`map_y`
+  (nullable percentage coordinates, set by the floorplan tagger below).
+- **`floorplan_versions`** — `show_id`, `image_path` (a path inside the
+  `floorplans` Storage bucket, not a full URL), `uploaded_by`,
+  `uploaded_at`. Every upload inserts a new row and repoints
+  `shows.active_floorplan_version_id` at it — "latest upload wins," no
+  draft/active/archived reconciliation workflow (architecture doc §5) yet.
+- **Storage**: a public-read `floorplans` bucket (venue map images aren't
+  sensitive, so the public URL works directly — no signed URLs). Objects
+  are stored at `{show_id}/{random}.{ext}`; a `storage.objects` INSERT
+  policy checks `(storage.foldername(name))[1]` against the same
+  can-manage-this-show rule as everything else.
+- **RLS**: a new `public.can_manage_show(show_id)` helper (same
+  `security definer` pattern as `is_platform_admin()`/
+  `is_organiser_staff_for()`) — `platform_admin` or `organiser_staff` for
+  that show's organiser can read/write. Reused for the storage policy too.
+- **Floorplan tagging** (`src/components/floorplan-tagger.tsx`): per the
+  architecture doc's mobile guidance (§1), pinch-zoom/pan come from the
+  browser's native handling of a plain `<img>` in a scrollable container
+  (no custom gesture JS); tap-to-place always goes through an explicit
+  "Place [booth] here? Confirm/Cancel" step rather than saving on tap, plus
+  four nudge buttons (±0.5%) for fine adjustment before confirming.
+- **Deliberate simplifications** vs. the architecture doc's fuller model
+  (§2): no islands (`BoothGroup`/`parent_group_id`/`island_layout_template`
+  — a booth type of category `island` doesn't auto-generate sub-slots, you
+  create booths one at a time same as any other category), no release
+  phases, no floorplan draft/publish reconciliation. All future work.
 
 ## Notes
 
@@ -213,10 +261,17 @@ above) picks which console's content renders, per the architecture doc's
   `organiser_staff` by email), and `organiser_staff`'s own "Shows" section
   in `/dashboard`, both surfaced through the existing role switcher rather
   than as separate routes. Not yet done: editing organisers/shows after
-  creation, floorplan upload (`active_floorplan_version_id` exists but
-  nothing sets it), the rest of the Organiser/Show/Booth/Application
-  domain model from the architecture doc (§2) — booth types, release
-  phases, applications, payments — and any vendor/attendee-facing UI.
+  creation.
+- **Booth types, booths, and floorplan tagging** — done. See Booth Types,
+  Booths, and Floorplans above: `/dashboard/shows/[showId]` lets
+  `platform_admin`/`organiser_staff` define booth types (category, name,
+  cost, selection fee), add booths with unique per-show identifiers, and
+  upload/tag a floorplan image (tap-to-place with a confirm step and
+  nudge controls). Not yet done: editing/deleting booth types or booths,
+  islands (`BoothGroup`), release phases, floorplan draft/publish
+  reconciliation, applications, payments, and any vendor/attendee-facing
+  UI — the rest of the Organiser/Show/Booth/Application domain model from
+  the architecture doc (§2).
 
 ## Before Launch
 

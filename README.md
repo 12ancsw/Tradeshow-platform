@@ -26,6 +26,10 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
      scoped to their own organiser), plus RLS letting `platform_admin`
      look up any user by email. Used by `/dashboard` (Organisers/Shows
      sections) and `/dashboard/organisers/[organiserId]`.
+   - `0004_booth_types_booths_and_floorplans.sql` — `booth_types`,
+     `booths`, and `floorplan_versions` tables with RLS, plus a public
+     `floorplans` Storage bucket (created via this migration) with an
+     RLS-gated upload policy. Used by `/dashboard/shows/[showId]`.
 
 ### Dev server
 
