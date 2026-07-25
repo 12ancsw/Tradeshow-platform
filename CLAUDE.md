@@ -1,4 +1,5 @@
 @AGENTS.md
+@card-show-platform-architecture.md
 
 # Tradeshow Platform
 
@@ -8,25 +9,41 @@ sell table/booth space to vendors; buyers browse and attend. Built
 phone, so design and test at small viewports first and progressively
 enhance for larger screens.
 
+See `card-show-platform-architecture.md` for the full architecture and
+data model — it's the source of truth for anything not covered below,
+including the not-yet-built Organiser/Show/Booth/Application domain model.
+This file tracks what's actually implemented and where.
+
 ## Tenancy model
 
-Multi-tenant. Each tenant is (at minimum) an organiser running one or more
-shows. Data, access, and branding should be scoped per tenant — do not
-assume a single global instance when designing schema, queries, or routes.
+Multi-tenant. An `organiser_staff` role is scoped to one organiser via
+`user_roles.organiser_id`; every other role (`platform_admin`, `vendor`,
+`attendee`) is platform-wide. There's no `organisers` table yet (see
+Progress Log) — `user_roles.organiser_id` is an unconstrained nullable
+column for now, ready for that table once it's built.
 
 ## Personas
 
-Five roles drive the permission model and UI surfaces:
+Five roles drive the permission model and UI surfaces (see the
+architecture doc's "Persona → Module Mapping"):
 
-1. **Platform Admin** — operates the platform itself across all tenants
-   (support, billing oversight, abuse handling).
-2. **Organiser** — owns a tenant; creates and runs shows, manages vendor
-   applications/bookings, verifies payments.
-3. **Vendor** — applies for and books tables/booths at shows, manages their
-   own listing/profile.
-4. **VIP buyer** — attendee with elevated access (e.g. early entry,
-   reserved perks) tied to a show.
-5. **General attendee** — regular show visitor; browsing/ticketing only.
+1. **Platform Admin** (`platform_admin`) — operates the platform itself
+   across all tenants (support, billing oversight, abuse handling). Never
+   self-selected — granted by an existing admin.
+2. **Organiser Staff** (`organiser_staff`) — belongs to one organiser
+   (`user_roles.organiser_id`); creates and runs shows, manages vendor
+   applications/bookings, verifies payments. Never self-selected — granted
+   by an existing admin/organiser.
+3. **Vendor** (`vendor`) — applies for and books tables/booths at shows,
+   manages their own listing/profile (`vendor_profiles`). Self-serve at
+   signup.
+4. **Attendee** (`attendee`) — covers both VIP pass buyers and general
+   attendees per the architecture doc (same `User`/ticketing
+   infrastructure, differentiated by `PassType` tier once that exists).
+   Self-serve at signup ("I'm attending as a guest").
+
+A single account can hold more than one role at once (e.g. `vendor` AND
+`attendee`) — see the role switcher on `/dashboard`.
 
 ## Payments (Day 1)
 
@@ -55,22 +72,53 @@ assuming an automated payment webhook will flip it.
   session cookie on every request. Note: this Next.js version renamed the
   `middleware.ts` convention to `proxy.ts` (see AGENTS.md) — don't
   reintroduce a `middleware.ts` file, it won't run.
-- `supabase/migrations/` — hand-applied SQL migrations (run in the Supabase
-  SQL editor, or via the Supabase CLI once one is wired up)
+- `src/lib/auth.ts` — `getCurrentUserWithRoles()` helper (session user,
+  `users.name`, and every `user_roles` row), shared by `/login`,
+  `/signup`, `/signup/role`, and `/dashboard`.
+- `supabase/migrations/` — hand-applied SQL migrations (run in the
+  Supabase SQL editor, or via the Supabase CLI once one is wired up)
 
 ## Auth
 
-Supabase Auth, email/password only for now. `public.profiles` (see
-`supabase/migrations/0002_profiles.sql`) holds one row per auth user with a
-`role` enum (`vendor` | `organiser` | `platform_admin`), auto-populated by a
-DB trigger on `auth.users` insert from the `role` passed in signup
-`user_metadata`. `platform_admin` is never selectable at signup — it's set
-manually (e.g. a SQL update) by whoever operates the platform.
+Supabase Auth, email/password only for now. **One signup/login for
+everyone** (architecture doc §3) — there's no per-persona account type,
+just a `users` row (name/email/phone, one per auth user, auto-populated by
+a DB trigger reading signup `user_metadata`) plus zero or more
+`user_roles` rows determining what the account can do.
 
-- `/signup` — email/password + Vendor-or-Organiser role choice
-- `/login` — email/password
-- `/dashboard` — placeholder post-login landing page; redirects to `/login`
-  if there's no session
+- `public.users` (`supabase/migrations/0002_users_roles_and_vendor_profiles.sql`)
+  — `id` (= `auth.users.id`), `email`, `name`, `phone`, `created_at`.
+- `public.user_roles` — `user_id`, `role` (`platform_admin` |
+  `organiser_staff` | `vendor` | `attendee`), `organiser_id` (nullable,
+  organiser_staff only), `granted_by`/`granted_at`. RLS only allows a user
+  to self-insert `vendor`/`attendee` rows with `granted_by = null` —
+  `platform_admin`/`organiser_staff` require a grant flow that isn't
+  built yet (see Progress Log), and RLS blocks self-granting either from
+  the client.
+- `public.vendor_profiles` — `user_id`, `business_name`, `tax_id`,
+  `mailing_address`. Created (blank) alongside the `vendor` role at
+  signup.
+- RLS on all three: users can read/update only their own row(s); nothing
+  is publicly readable by default.
+
+Signup is two steps:
+
+- `/signup` — email, password, name. Calls `supabase.auth.signUp`
+  (built-in Supabase signup, no hand-rolled password handling) with
+  `name` in `user_metadata`; the DB trigger creates the `users` row.
+- `/signup/role` — "I'm a vendor" or "I'm attending as a guest" (single
+  choice, big tap targets). Inserts the matching `user_roles` row and, for
+  vendor, a blank `vendor_profiles` row. Redirects to `/dashboard`.
+
+`/login` — email/password. `/dashboard` — redirects to `/login` with no
+session, or to `/signup/role` if the signed-in user holds zero roles yet
+(e.g. they confirmed their email and logged in without ever finishing
+step 2). Otherwise shows "Logged in as [name], role: [role]" plus a role
+switcher (`src/app/dashboard/home-content.tsx`, a client component) when
+the account holds more than one role — active role is local component
+state only, not persisted anywhere yet (per architecture doc §3, this is
+enough for now; whichever context is "active" will eventually drive the
+bottom nav/home screen once those exist).
 
 ## Notes
 
@@ -83,8 +131,25 @@ manually (e.g. a SQL update) by whoever operates the platform.
 ## Progress Log
 
 - **Supabase connectivity** — done. `/` verifies the app can reach Supabase.
-- **Auth (email/password + role)** — done. Signup/login/dashboard above,
-  backed by `profiles` table + RLS + auto-create trigger. Not yet done:
-  password reset, email verification UX beyond the generic "check your
-  email" message, and any role-gated routes/UI beyond the dashboard's
-  plain-text role display.
+- **Auth & roles (users/user_roles/vendor_profiles)** — done. Replaces an
+  earlier single-role `profiles` table (and the `organisers`/`shows`
+  tables + `/admin`/`/organiser` consoles built on top of it) with the
+  architecture doc's real shape: one `User` per person, many `UserRole`
+  rows, RLS-gated self-serve signup for `vendor`/`attendee` only. See
+  Auth above for `/signup`, `/signup/role`, `/login`, `/dashboard`.
+  Not yet done: `platform_admin`/`organiser_staff` grant flow (schema and
+  RLS already support it — see `user_roles.granted_by`/`organiser_id` —
+  just no UI yet), password reset, email verification UX beyond the
+  generic "check your email" message, `VendorFieldPolicy`/
+  `VendorFieldConsent`, and the entire Organiser/Show/Booth/Application
+  domain model from the architecture doc (§2) — none of that exists yet,
+  this PR is auth/roles only.
+
+## Before Launch
+
+- **Custom SMTP provider.** Supabase's built-in email service (signup
+  confirmations, password resets) has a low rate limit meant for dev
+  testing only — fine for now, but needs a real provider (Resend,
+  Postmark, SendGrid, etc.) wired in via Authentication → Settings → SMTP
+  Settings before onboarding real organisers/vendors, or signups will
+  start failing with "email rate limit exceeded."

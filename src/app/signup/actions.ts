@@ -9,12 +9,12 @@ export type SignupState = {
 };
 
 export async function signup(_prevState: SignupState, formData: FormData): Promise<SignupState> {
+  const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
-  const role = String(formData.get("role") ?? "");
 
-  if (role !== "vendor" && role !== "organiser") {
-    return { error: "Choose whether you're a vendor or an organiser.", message: null };
+  if (!name) {
+    return { error: "Name is required.", message: null };
   }
 
   const supabase = await createClient();
@@ -22,7 +22,7 @@ export async function signup(_prevState: SignupState, formData: FormData): Promi
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { role } },
+    options: { data: { name } },
   });
 
   if (error) {
@@ -36,5 +36,5 @@ export async function signup(_prevState: SignupState, formData: FormData): Promi
     };
   }
 
-  redirect("/dashboard");
+  redirect("/signup/role");
 }

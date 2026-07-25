@@ -1,6 +1,7 @@
 Tradeshow Platform — a mobile-first, multi-tenant card show vendor booking
-platform. See `CLAUDE.md` for the project summary (personas, tenancy,
-payments).
+platform. See `CLAUDE.md` for what's implemented, and
+`card-show-platform-architecture.md` for the full architecture and data
+model.
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
@@ -17,9 +18,10 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
    linked):
    - `0001_get_server_time.sql` — RPC the `/` test page calls to verify
      connectivity.
-   - `0002_profiles.sql` — `profiles` table (with `role`) and the trigger
-     that populates it on signup, used by `/signup`, `/login`, and
-     `/dashboard`.
+   - `0002_users_roles_and_vendor_profiles.sql` — `users`, `user_roles`,
+     and `vendor_profiles` tables with RLS, and the trigger that creates a
+     `users` row on signup. Used by `/signup`, `/signup/role`, `/login`,
+     and `/dashboard`.
 
 ### Dev server
 

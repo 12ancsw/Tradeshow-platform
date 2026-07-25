@@ -12,6 +12,20 @@ export function SignupForm() {
   return (
     <form action={formAction} className="flex w-full max-w-sm flex-col gap-4">
       <div className="flex flex-col gap-1">
+        <label htmlFor="name" className="text-sm font-medium">
+          Name
+        </label>
+        <input
+          id="name"
+          name="name"
+          type="text"
+          required
+          autoComplete="name"
+          className="rounded-lg border border-zinc-300 px-4 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
         <label htmlFor="email" className="text-sm font-medium">
           Email
         </label>
@@ -40,20 +54,6 @@ export function SignupForm() {
         />
       </div>
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium">I am a...</legend>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex cursor-pointer items-center justify-center rounded-lg border border-zinc-300 px-4 py-3 text-base has-[:checked]:border-black has-[:checked]:bg-black has-[:checked]:text-white dark:border-zinc-700 dark:has-[:checked]:border-white dark:has-[:checked]:bg-white dark:has-[:checked]:text-black">
-            <input type="radio" name="role" value="vendor" required className="sr-only" />
-            Vendor
-          </label>
-          <label className="flex cursor-pointer items-center justify-center rounded-lg border border-zinc-300 px-4 py-3 text-base has-[:checked]:border-black has-[:checked]:bg-black has-[:checked]:text-white dark:border-zinc-700 dark:has-[:checked]:border-white dark:has-[:checked]:bg-white dark:has-[:checked]:text-black">
-            <input type="radio" name="role" value="organiser" required className="sr-only" />
-            Organiser
-          </label>
-        </div>
-      </fieldset>
-
       {state.error ? (
         <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
       ) : null}
@@ -66,7 +66,7 @@ export function SignupForm() {
         disabled={pending}
         className="w-full rounded-lg bg-black px-4 py-3 text-base font-medium text-white disabled:opacity-60 dark:bg-white dark:text-black"
       >
-        {pending ? "Creating account…" : "Sign up"}
+        {pending ? "Creating account…" : "Continue"}
       </button>
 
       <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">

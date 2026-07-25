@@ -1,15 +1,12 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserWithRoles } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
 export default async function LoginPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const current = await getCurrentUserWithRoles();
 
-  if (user) {
-    redirect("/dashboard");
+  if (current) {
+    redirect(current.roles.length > 0 ? "/dashboard" : "/signup/role");
   }
 
   return (
