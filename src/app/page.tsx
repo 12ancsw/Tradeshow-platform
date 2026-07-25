@@ -16,8 +16,14 @@ export default async function Home() {
     connected = true;
     timestamp = data as string;
   } catch (err) {
-    errorMessage =
-      err instanceof Error ? err.message : "Unknown error connecting to Supabase.";
+    // Supabase can throw either an Error or a plain { message, details, hint, code }
+    // object (e.g. for network-level failures), so check for `.message` directly
+    // rather than requiring `instanceof Error`.
+    if (err && typeof err === "object" && "message" in err && typeof err.message === "string") {
+      errorMessage = err.message;
+    } else {
+      errorMessage = "Unknown error connecting to Supabase.";
+    }
   }
 
   return (
