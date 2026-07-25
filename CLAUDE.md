@@ -79,9 +79,9 @@ assuming an automated payment webhook will flip it.
   `users.name`, and every `user_roles` row), used by `/dashboard`.
 - `src/lib/actions/` — Server Actions shared across routes:
   `organisers.ts` (`createOrganiser`, `assignOrganiserStaff`), `shows.ts`
-  (`createShow`), `booth-types.ts` (`createBoothType`), `booths.ts`
-  (`createBooth`, `updateBoothPosition`), `floorplans.ts`
-  (`uploadFloorplan`).
+  (`createShow`), `booth-types.ts` (`createBoothType`, `updateBoothType`),
+  `booths.ts` (`createBooth`, `updateBooth`, `updateBoothPosition`),
+  `floorplans.ts` (`uploadFloorplan`).
 - `src/components/` — shared UI: `status-badge.tsx`, `organiser-list.tsx`,
   `organiser-form.tsx`, `assign-staff-form.tsx`, `show-list.tsx`,
   `show-form.tsx`, `booth-type-list.tsx`, `booth-type-form.tsx`,
@@ -196,12 +196,17 @@ and `/dashboard/organisers/[organiserId]` (admin's drill-down) — same
 `ShowList` component, now clickable.
 
 - **`booth_types`** — `show_id`, `name`, `category` (`island` | `standard`
-  | `corner`), `base_price`, `selection_fee`. No edit UI yet.
+  | `corner`), `base_price`, `selection_fee`. Editable in place (tap
+  "Edit" on a booth type's list row — `0005_booth_type_updates.sql` added
+  the update policy `0004` was missing).
 - **`booths`** — `show_id`, `booth_type_id`, `organiser_ref` (the
   organiser-defined unique identifier, e.g. "A1" — unique per show),
-  `status` (defaults `available`, matches the architecture doc's enum;
-  nothing transitions it yet, no booking flow exists), `map_x`/`map_y`
+  `status` (defaults `available`, matches the architecture doc's enum; no
+  booking flow transitions it automatically, but it's editable in place —
+  e.g. to manually `block` a booth behind a pillar), `map_x`/`map_y`
   (nullable percentage coordinates, set by the floorplan tagger below).
+  Booth type and `organiser_ref` are also editable in place, same
+  tap-"Edit" pattern as booth types.
 - **`floorplan_versions`** — `show_id`, `image_path` (a path inside the
   `floorplans` Storage bucket, not a full URL), `uploaded_by`,
   `uploaded_at`. Every upload inserts a new row and repoints
@@ -267,11 +272,12 @@ and `/dashboard/organisers/[organiserId]` (admin's drill-down) — same
   `platform_admin`/`organiser_staff` define booth types (category, name,
   cost, selection fee), add booths with unique per-show identifiers, and
   upload/tag a floorplan image (tap-to-place with a confirm step and
-  nudge controls). Not yet done: editing/deleting booth types or booths,
-  islands (`BoothGroup`), release phases, floorplan draft/publish
-  reconciliation, applications, payments, and any vendor/attendee-facing
-  UI — the rest of the Organiser/Show/Booth/Application domain model from
-  the architecture doc (§2).
+  nudge controls). Booth types and booths are both editable in place
+  (inline edit on their list row, not a separate page). Not yet done:
+  deleting booth types or booths, islands (`BoothGroup`), release phases,
+  floorplan draft/publish reconciliation, applications, payments, and any
+  vendor/attendee-facing UI — the rest of the Organiser/Show/Booth/
+  Application domain model from the architecture doc (§2).
 
 ## Before Launch
 

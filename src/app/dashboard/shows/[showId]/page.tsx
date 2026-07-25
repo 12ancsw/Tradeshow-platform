@@ -84,7 +84,7 @@ export default async function ShowDetailPage({
 
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Booth Types</h2>
-          <BoothTypeList boothTypes={boothTypes ?? []} />
+          <BoothTypeList boothTypes={boothTypes ?? []} showId={show.id} />
           <div className="flex flex-col gap-2 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
             <h3 className="font-medium">Create Booth Type</h3>
             <BoothTypeForm showId={show.id} />
@@ -93,7 +93,7 @@ export default async function ShowDetailPage({
 
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Booths</h2>
-          <BoothList booths={booths ?? []} boothTypes={boothTypes ?? []} />
+          <BoothList booths={booths ?? []} boothTypes={boothTypes ?? []} showId={show.id} />
           <div className="flex flex-col gap-2 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
             <h3 className="font-medium">Add Booth</h3>
             {boothTypes && boothTypes.length > 0 ? (

@@ -7,6 +7,8 @@ export type BoothFormState = {
   error: string | null;
 };
 
+const STATUSES = ["available", "held", "pending_payment", "confirmed", "blocked"] as const;
+
 export async function createBooth(
   showId: string,
   _prevState: BoothFormState,
@@ -25,6 +27,41 @@ export async function createBooth(
     booth_type_id: boothTypeId,
     organiser_ref: organiserRef,
   });
+
+  if (error) {
+    if (error.code === "23505") {
+      return { error: `Booth "${organiserRef}" already exists for this show.` };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath(`/dashboard/shows/${showId}`);
+  return { error: null };
+}
+
+export async function updateBooth(
+  boothId: string,
+  showId: string,
+  _prevState: BoothFormState,
+  formData: FormData,
+): Promise<BoothFormState> {
+  const boothTypeId = String(formData.get("booth_type_id") ?? "");
+  const organiserRef = String(formData.get("organiser_ref") ?? "").trim();
+  const status = String(formData.get("status") ?? "");
+
+  if (!boothTypeId || !organiserRef) {
+    return { error: "Booth type and identifier are required." };
+  }
+
+  if (!STATUSES.includes(status as (typeof STATUSES)[number])) {
+    return { error: "Choose a valid status." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("booths")
+    .update({ booth_type_id: boothTypeId, organiser_ref: organiserRef, status })
+    .eq("id", boothId);
 
   if (error) {
     if (error.code === "23505") {

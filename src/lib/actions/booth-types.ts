@@ -9,11 +9,17 @@ export type BoothTypeFormState = {
 
 const CATEGORIES = ["island", "standard", "corner"] as const;
 
-export async function createBoothType(
-  showId: string,
-  _prevState: BoothTypeFormState,
-  formData: FormData,
-): Promise<BoothTypeFormState> {
+type ParsedBoothType =
+  | { error: string }
+  | {
+      error: null;
+      name: string;
+      category: (typeof CATEGORIES)[number];
+      basePrice: number;
+      selectionFee: number;
+    };
+
+function parseBoothTypeInput(formData: FormData): ParsedBoothType {
   const name = String(formData.get("name") ?? "").trim();
   const category = String(formData.get("category") ?? "");
   const basePriceInput = String(formData.get("base_price") ?? "");
@@ -38,14 +44,65 @@ export async function createBoothType(
     return { error: "Selection fee must be a valid non-negative number." };
   }
 
+  return {
+    error: null,
+    name,
+    category: category as (typeof CATEGORIES)[number],
+    basePrice,
+    selectionFee,
+  };
+}
+
+export async function createBoothType(
+  showId: string,
+  _prevState: BoothTypeFormState,
+  formData: FormData,
+): Promise<BoothTypeFormState> {
+  const parsed = parseBoothTypeInput(formData);
+
+  if (parsed.error !== null) {
+    return { error: parsed.error };
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.from("booth_types").insert({
     show_id: showId,
-    name,
-    category,
-    base_price: basePrice,
-    selection_fee: selectionFee,
+    name: parsed.name,
+    category: parsed.category,
+    base_price: parsed.basePrice,
+    selection_fee: parsed.selectionFee,
   });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath(`/dashboard/shows/${showId}`);
+  return { error: null };
+}
+
+export async function updateBoothType(
+  boothTypeId: string,
+  showId: string,
+  _prevState: BoothTypeFormState,
+  formData: FormData,
+): Promise<BoothTypeFormState> {
+  const parsed = parseBoothTypeInput(formData);
+
+  if (parsed.error !== null) {
+    return { error: parsed.error };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("booth_types")
+    .update({
+      name: parsed.name,
+      category: parsed.category,
+      base_price: parsed.basePrice,
+      selection_fee: parsed.selectionFee,
+    })
+    .eq("id", boothTypeId);
 
   if (error) {
     return { error: error.message };
