@@ -101,3 +101,24 @@ export async function updateBoothType(
   revalidatePath(`/dashboard/shows/${showId}`);
   return { error: null };
 }
+
+export async function deleteBoothType(
+  boothTypeId: string,
+  showId: string,
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("booth_types").delete().eq("id", boothTypeId);
+
+  if (error) {
+    if (error.code === "23503") {
+      return {
+        error:
+          "Can't delete this booth type — it has booths assigned to it. Reassign or remove those booths first.",
+      };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath(`/dashboard/shows/${showId}`);
+  return { error: null };
+}

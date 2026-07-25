@@ -79,15 +79,17 @@ assuming an automated payment webhook will flip it.
   `users.name`, and every `user_roles` row), used by `/dashboard`.
 - `src/lib/actions/` — Server Actions shared across routes:
   `organisers.ts` (`createOrganiser`, `assignOrganiserStaff`), `shows.ts`
-  (`createShow`), `booth-types.ts` (`createBoothType`, `updateBoothType`),
-  `booths.ts` (`createBooth`, `updateBooth`, `updateBoothPosition`),
-  `floorplans.ts` (`uploadFloorplan`).
+  (`createShow`), `booth-types.ts` (`createBoothType`, `updateBoothType`,
+  `deleteBoothType`), `booths.ts` (`createBooth`, `updateBooth`,
+  `updateBoothPosition`), `add-ons.ts` (`createAddOn`, `updateAddOn`,
+  `deleteAddOn`), `floorplans.ts` (`uploadFloorplan`).
 - `src/components/` — shared UI: `status-badge.tsx`, `organiser-list.tsx`,
   `organiser-form.tsx`, `assign-staff-form.tsx`, `show-list.tsx`,
   `show-form.tsx`, `booth-type-list.tsx`, `booth-type-form.tsx`,
-  `booth-list.tsx`, `booth-form.tsx`, `floorplan-upload-form.tsx`,
-  `floorplan-tagger.tsx` — used across `/dashboard`,
-  `/dashboard/organisers/[organiserId]`, and `/dashboard/shows/[showId]`.
+  `booth-list.tsx`, `booth-form.tsx`, `add-on-list.tsx`, `add-on-form.tsx`,
+  `floorplan-upload-form.tsx`, `floorplan-tagger.tsx` — used across
+  `/dashboard`, `/dashboard/organisers/[organiserId]`, and
+  `/dashboard/shows/[showId]`.
 - `supabase/migrations/` — hand-applied SQL migrations (run in the
   Supabase SQL editor, or via the Supabase CLI once one is wired up)
 
@@ -185,25 +187,36 @@ above) picks which console's content renders, per the architecture doc's
   form. No organiser-detail editing or staff-assignment here; that's
   admin-only.
 
-## Booth Types, Booths, and Floorplans
+## Booth Types, Booths, Add-ons, and Floorplans
 
-`public.booth_types`, `public.booths`, and `public.floorplan_versions`
-(`supabase/migrations/0004_booth_types_booths_and_floorplans.sql`) let
-`platform_admin`/`organiser_staff` set up a show's booth inventory. All
-three live on a new per-show page, `/dashboard/shows/[showId]`, linked to
-from the show lists on both `/dashboard` (`organiser_staff`'s own shows)
-and `/dashboard/organisers/[organiserId]` (admin's drill-down) — same
+`public.booth_types`, `public.booths`, `public.add_ons`, and
+`public.floorplan_versions` (`supabase/migrations/0004_booth_types_booths_and_floorplans.sql`
+onward) let `platform_admin`/`organiser_staff` set up a show's booth
+inventory. All four live on a new per-show page,
+`/dashboard/shows/[showId]`, linked to from the show lists on both
+`/dashboard` (`organiser_staff`'s own shows) and
+`/dashboard/organisers/[organiserId]` (admin's drill-down) — same
 `ShowList` component, now clickable.
 
 - **`booth_types`** — `show_id`, `name`, `category` (`island` | `standard`
-  | `corner`), `base_price`. Editable in place (tap "Edit" on a booth
-  type's list row — `0005_booth_type_updates.sql` added the update policy
-  `0004` was missing). No `selection_fee` field: per the architecture
-  doc, that belongs to a future `ReleasePhase` (only charged under
-  `allocation_mode = immediate_selection`, set by the organiser when they
-  release booths into that phase), not the booth type itself —
-  `0006_remove_booth_type_selection_fee.sql` removed an earlier,
+  | `corner`), `base_price`. Editable and deletable in place (tap "Edit"
+  or "Delete" on a booth type's list row — `0005_booth_type_updates.sql`
+  added the update policy `0004` was missing, `0007_add_ons_and_booth_type_deletion.sql`
+  added delete). Deleting a booth type with booths still assigned to it
+  fails with a clear message instead of orphaning/cascading — `booths.booth_type_id`
+  deliberately has no `on delete cascade`. No `selection_fee` field: per
+  the architecture doc, that belongs to a future `ReleasePhase` (only
+  charged under `allocation_mode = immediate_selection`, set by the
+  organiser when they release booths into that phase), not the booth type
+  itself — `0006_remove_booth_type_selection_fee.sql` removed an earlier,
   incorrect `selection_fee` column here.
+- **`add_ons`** — `show_id`, `name`, `price`, `mandatory` (boolean).
+  Show-level per the architecture doc (`Show` → `AddOn` 1:many), not
+  booth-type-scoped. `mandatory` marks an add-on the organiser requires on
+  every application for the show, rather than one a vendor opts into —
+  there's no `Application` flow yet to actually enforce that against, so
+  today `mandatory` is just data a future application flow will read.
+  Full CRUD (create/edit/delete), same inline patterns as booth types.
 - **`booths`** — `show_id`, `booth_type_id`, `organiser_ref` (the
   organiser-defined unique identifier, e.g. "A1" — unique per show),
   `status` (defaults `available`, matches the architecture doc's enum; no
@@ -272,17 +285,19 @@ and `/dashboard/organisers/[organiserId]` (admin's drill-down) — same
   in `/dashboard`, both surfaced through the existing role switcher rather
   than as separate routes. Not yet done: editing organisers/shows after
   creation.
-- **Booth types, booths, and floorplan tagging** — done. See Booth Types,
-  Booths, and Floorplans above: `/dashboard/shows/[showId]` lets
-  `platform_admin`/`organiser_staff` define booth types (category, name,
-  cost), add booths with unique per-show identifiers, and
-  upload/tag a floorplan image (tap-to-place with a confirm step and
-  nudge controls). Booth types and booths are both editable in place
-  (inline edit on their list row, not a separate page). Not yet done:
-  deleting booth types or booths, islands (`BoothGroup`), release phases,
-  floorplan draft/publish reconciliation, applications, payments, and any
-  vendor/attendee-facing UI — the rest of the Organiser/Show/Booth/
-  Application domain model from the architecture doc (§2).
+- **Booth types, booths, add-ons, and floorplan tagging** — done. See
+  Booth Types, Booths, Add-ons, and Floorplans above: `/dashboard/shows/[showId]`
+  lets `platform_admin`/`organiser_staff` define booth types (category,
+  name, cost), add booths with unique per-show identifiers, define
+  show-level add-ons (optionally `mandatory`), and upload/tag a floorplan
+  image (tap-to-place with a confirm step and nudge controls). Booth
+  types and add-ons are fully editable and deletable in place; booths are
+  editable but not (yet) deletable. Not yet done: deleting booths,
+  islands (`BoothGroup`), release phases, floorplan draft/publish
+  reconciliation, applications (including actually enforcing `mandatory`
+  add-ons), payments, and any vendor/attendee-facing UI — the rest of the
+  Organiser/Show/Booth/Application domain model from the architecture doc
+  (§2).
 
 ## Before Launch
 

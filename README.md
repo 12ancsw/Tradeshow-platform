@@ -35,6 +35,9 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
    - `0006_remove_booth_type_selection_fee.sql` — drops
      `booth_types.selection_fee`; a selection fee belongs to a future
      `ReleasePhase` instead, not the booth type itself.
+   - `0007_add_ons_and_booth_type_deletion.sql` — `add_ons` table with
+     RLS (show-level, optionally `mandatory`), plus a `booth_types` delete
+     policy so organisers can remove booth types.
 
 ### Dev server
 

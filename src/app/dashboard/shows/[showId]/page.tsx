@@ -8,6 +8,8 @@ import { BoothList } from "@/components/booth-list";
 import { BoothForm } from "@/components/booth-form";
 import { FloorplanUploadForm } from "@/components/floorplan-upload-form";
 import { FloorplanTagger } from "@/components/floorplan-tagger";
+import { AddOnList } from "@/components/add-on-list";
+import { AddOnForm } from "@/components/add-on-form";
 
 export default async function ShowDetailPage({
   params,
@@ -33,25 +35,31 @@ export default async function ShowDetailPage({
     notFound();
   }
 
-  const [{ data: boothTypes }, { data: booths }, floorplanVersionResult] = await Promise.all([
-    supabase
-      .from("booth_types")
-      .select("id, name, category, base_price")
-      .eq("show_id", showId)
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("booths")
-      .select("id, organiser_ref, status, map_x, map_y, booth_type_id")
-      .eq("show_id", showId)
-      .order("organiser_ref", { ascending: true }),
-    show.active_floorplan_version_id
-      ? supabase
-          .from("floorplan_versions")
-          .select("image_path")
-          .eq("id", show.active_floorplan_version_id)
-          .single()
-      : Promise.resolve({ data: null }),
-  ]);
+  const [{ data: boothTypes }, { data: booths }, { data: addOns }, floorplanVersionResult] =
+    await Promise.all([
+      supabase
+        .from("booth_types")
+        .select("id, name, category, base_price")
+        .eq("show_id", showId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("booths")
+        .select("id, organiser_ref, status, map_x, map_y, booth_type_id")
+        .eq("show_id", showId)
+        .order("organiser_ref", { ascending: true }),
+      supabase
+        .from("add_ons")
+        .select("id, name, price, mandatory")
+        .eq("show_id", showId)
+        .order("created_at", { ascending: true }),
+      show.active_floorplan_version_id
+        ? supabase
+            .from("floorplan_versions")
+            .select("image_path")
+            .eq("id", show.active_floorplan_version_id)
+            .single()
+        : Promise.resolve({ data: null }),
+    ]);
 
   const floorplanImageUrl = floorplanVersionResult.data
     ? supabase.storage.from("floorplans").getPublicUrl(floorplanVersionResult.data.image_path).data
@@ -88,6 +96,15 @@ export default async function ShowDetailPage({
           <div className="flex flex-col gap-2 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
             <h3 className="font-medium">Create Booth Type</h3>
             <BoothTypeForm showId={show.id} />
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold">Add-ons</h2>
+          <AddOnList addOns={addOns ?? []} showId={show.id} />
+          <div className="flex flex-col gap-2 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
+            <h3 className="font-medium">Create Add-on</h3>
+            <AddOnForm showId={show.id} />
           </div>
         </section>
 
