@@ -5,6 +5,26 @@
 -- Note: is_platform_admin() previously existed in an earlier iteration of
 -- this schema, checking the now-removed `profiles` table. It's recreated
 -- here against user_roles.
+--
+-- Safe to run against a database that already has objects from an even
+-- earlier, superseded iteration of the organisers/shows schema (which
+-- also defined organiser_status, an is_platform_admin() checking
+-- `profiles`, and a show_status enum this version doesn't use) — this
+-- drops all of that first. If your database has never seen any of these
+-- objects, all of this is a no-op.
+drop table if exists public.shows cascade;
+drop table if exists public.organisers cascade;
+drop function if exists public.is_organiser_staff_for(uuid);
+drop function if exists public.is_platform_admin();
+drop type if exists public.show_status;
+drop type if exists public.organiser_status;
+
+-- These target the existing users/user_roles tables (from
+-- 0002_users_roles_and_vendor_profiles.sql), which aren't dropped and
+-- recreated above, so a rerun needs these dropped explicitly too.
+drop policy if exists "Platform admins can view all users" on public.users;
+drop policy if exists "Platform admins can view all roles" on public.user_roles;
+drop policy if exists "Platform admins can grant any role" on public.user_roles;
 
 create type public.organiser_status as enum ('pending', 'active', 'suspended');
 
