@@ -32,6 +32,9 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
      RLS-gated upload policy. Used by `/dashboard/shows/[showId]`.
    - `0005_booth_type_updates.sql` — adds the `booth_types` update policy
      `0004` was missing, so booth types can be edited after creation.
+   - `0006_remove_booth_type_selection_fee.sql` — drops
+     `booth_types.selection_fee`; a selection fee belongs to a future
+     `ReleasePhase` instead, not the booth type itself.
 
 ### Dev server
 

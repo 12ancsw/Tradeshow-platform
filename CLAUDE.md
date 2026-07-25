@@ -196,9 +196,14 @@ and `/dashboard/organisers/[organiserId]` (admin's drill-down) — same
 `ShowList` component, now clickable.
 
 - **`booth_types`** — `show_id`, `name`, `category` (`island` | `standard`
-  | `corner`), `base_price`, `selection_fee`. Editable in place (tap
-  "Edit" on a booth type's list row — `0005_booth_type_updates.sql` added
-  the update policy `0004` was missing).
+  | `corner`), `base_price`. Editable in place (tap "Edit" on a booth
+  type's list row — `0005_booth_type_updates.sql` added the update policy
+  `0004` was missing). No `selection_fee` field: per the architecture
+  doc, that belongs to a future `ReleasePhase` (only charged under
+  `allocation_mode = immediate_selection`, set by the organiser when they
+  release booths into that phase), not the booth type itself —
+  `0006_remove_booth_type_selection_fee.sql` removed an earlier,
+  incorrect `selection_fee` column here.
 - **`booths`** — `show_id`, `booth_type_id`, `organiser_ref` (the
   organiser-defined unique identifier, e.g. "A1" — unique per show),
   `status` (defaults `available`, matches the architecture doc's enum; no
@@ -270,7 +275,7 @@ and `/dashboard/organisers/[organiserId]` (admin's drill-down) — same
 - **Booth types, booths, and floorplan tagging** — done. See Booth Types,
   Booths, and Floorplans above: `/dashboard/shows/[showId]` lets
   `platform_admin`/`organiser_staff` define booth types (category, name,
-  cost, selection fee), add booths with unique per-show identifiers, and
+  cost), add booths with unique per-show identifiers, and
   upload/tag a floorplan image (tap-to-place with a confirm step and
   nudge controls). Booth types and booths are both editable in place
   (inline edit on their list row, not a separate page). Not yet done:

@@ -16,14 +16,12 @@ type ParsedBoothType =
       name: string;
       category: (typeof CATEGORIES)[number];
       basePrice: number;
-      selectionFee: number;
     };
 
 function parseBoothTypeInput(formData: FormData): ParsedBoothType {
   const name = String(formData.get("name") ?? "").trim();
   const category = String(formData.get("category") ?? "");
   const basePriceInput = String(formData.get("base_price") ?? "");
-  const selectionFeeInput = String(formData.get("selection_fee") ?? "0");
 
   if (!name) {
     return { error: "Name is required." };
@@ -34,14 +32,9 @@ function parseBoothTypeInput(formData: FormData): ParsedBoothType {
   }
 
   const basePrice = Number(basePriceInput);
-  const selectionFee = Number(selectionFeeInput || "0");
 
   if (!Number.isFinite(basePrice) || basePrice < 0) {
     return { error: "Cost must be a valid non-negative number." };
-  }
-
-  if (!Number.isFinite(selectionFee) || selectionFee < 0) {
-    return { error: "Selection fee must be a valid non-negative number." };
   }
 
   return {
@@ -49,7 +42,6 @@ function parseBoothTypeInput(formData: FormData): ParsedBoothType {
     name,
     category: category as (typeof CATEGORIES)[number],
     basePrice,
-    selectionFee,
   };
 }
 
@@ -70,7 +62,6 @@ export async function createBoothType(
     name: parsed.name,
     category: parsed.category,
     base_price: parsed.basePrice,
-    selection_fee: parsed.selectionFee,
   });
 
   if (error) {
@@ -100,7 +91,6 @@ export async function updateBoothType(
       name: parsed.name,
       category: parsed.category,
       base_price: parsed.basePrice,
-      selection_fee: parsed.selectionFee,
     })
     .eq("id", boothTypeId);
 

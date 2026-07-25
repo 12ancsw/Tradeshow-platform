@@ -36,7 +36,7 @@ export default async function ShowDetailPage({
   const [{ data: boothTypes }, { data: booths }, floorplanVersionResult] = await Promise.all([
     supabase
       .from("booth_types")
-      .select("id, name, category, base_price, selection_fee")
+      .select("id, name, category, base_price")
       .eq("show_id", showId)
       .order("created_at", { ascending: true }),
     supabase

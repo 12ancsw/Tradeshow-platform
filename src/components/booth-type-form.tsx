@@ -41,36 +41,20 @@ export function BoothTypeForm({ showId }: { showId: string }) {
         </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="base_price" className="text-sm font-medium">
-            Cost ($)
-          </label>
-          <input
-            id="base_price"
-            name="base_price"
-            type="number"
-            step="0.01"
-            min="0"
-            required
-            defaultValue="0"
-            className="rounded-lg border border-zinc-300 px-3 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="selection_fee" className="text-sm font-medium">
-            Selection fee ($)
-          </label>
-          <input
-            id="selection_fee"
-            name="selection_fee"
-            type="number"
-            step="0.01"
-            min="0"
-            defaultValue="0"
-            className="rounded-lg border border-zinc-300 px-3 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="base_price" className="text-sm font-medium">
+          Cost ($)
+        </label>
+        <input
+          id="base_price"
+          name="base_price"
+          type="number"
+          step="0.01"
+          min="0"
+          required
+          defaultValue="0"
+          className="rounded-lg border border-zinc-300 px-3 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
+        />
       </div>
 
       {state.error ? (

@@ -8,7 +8,6 @@ type BoothType = {
   name: string;
   category: string;
   base_price: number | string;
-  selection_fee: number | string;
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -71,36 +70,20 @@ function EditBoothTypeForm({
         </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`base_price-${boothType.id}`} className="text-sm font-medium">
-            Cost ($)
-          </label>
-          <input
-            id={`base_price-${boothType.id}`}
-            name="base_price"
-            type="number"
-            step="0.01"
-            min="0"
-            required
-            defaultValue={Number(boothType.base_price)}
-            className="rounded-lg border border-zinc-300 px-3 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`selection_fee-${boothType.id}`} className="text-sm font-medium">
-            Selection fee ($)
-          </label>
-          <input
-            id={`selection_fee-${boothType.id}`}
-            name="selection_fee"
-            type="number"
-            step="0.01"
-            min="0"
-            defaultValue={Number(boothType.selection_fee)}
-            className="rounded-lg border border-zinc-300 px-3 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`base_price-${boothType.id}`} className="text-sm font-medium">
+          Cost ($)
+        </label>
+        <input
+          id={`base_price-${boothType.id}`}
+          name="base_price"
+          type="number"
+          step="0.01"
+          min="0"
+          required
+          defaultValue={Number(boothType.base_price)}
+          className="rounded-lg border border-zinc-300 px-3 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
+        />
       </div>
 
       {state.error ? (
@@ -162,14 +145,7 @@ export function BoothTypeList({
                 </span>
               </span>
               <div className="flex items-center gap-3">
-                <span className="flex flex-col items-end text-sm">
-                  <span>${Number(boothType.base_price).toFixed(2)}</span>
-                  {Number(boothType.selection_fee) > 0 ? (
-                    <span className="text-zinc-500 dark:text-zinc-400">
-                      +${Number(boothType.selection_fee).toFixed(2)} selection fee
-                    </span>
-                  ) : null}
-                </span>
+                <span className="text-sm">${Number(boothType.base_price).toFixed(2)}</span>
                 <button
                   type="button"
                   onClick={() => setEditingId(boothType.id)}
