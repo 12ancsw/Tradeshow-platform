@@ -238,7 +238,19 @@ the tab the mutating form lives on.
   e.g. to manually `block` a booth behind a pillar), `map_x`/`map_y`
   (nullable percentage coordinates, set by the floorplan tagger below).
   Booth type and `organiser_ref` are also editable in place, same
-  tap-"Edit" pattern as booth types.
+  tap-"Edit" pattern as booth types. The Booths tab (`booth-list.tsx`)
+  renders booths as a grid of cards rather than a stacked list, and groups
+  them by `booth_type_id`: standard/corner booths each get their own card
+  directly in the grid, while every booth sharing an `island`-category
+  booth type collapses behind a single expandable "Island" card showing a
+  booth count, which expands to reveal those booths as their own cards
+  underneath (indented with a left border). This is a UI grouping only —
+  there's no real parent/child relationship in the data (no `BoothGroup`,
+  see Deliberate simplifications below), so "sub booths within an island"
+  today just means "booths whose booth type happens to be category
+  `island`." Tapping a card to edit it expands that card to the grid's
+  full width (`col-span-full`) so the edit form isn't squeezed into a
+  grid cell.
 - **`floorplan_versions`** — `show_id`, `image_path` (a path inside the
   `floorplans` Storage bucket, not a full URL), `uploaded_by`,
   `uploaded_at`. Every upload inserts a new row and repoints

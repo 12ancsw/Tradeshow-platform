@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { updateBooth, type BoothFormState } from "@/lib/actions/booths";
 
-type BoothType = { id: string; name: string };
+type BoothType = { id: string; name: string; category: string };
 type Booth = {
   id: string;
   organiser_ref: string;
@@ -122,6 +122,58 @@ function EditBoothForm({
   );
 }
 
+function BoothCard({
+  booth,
+  boothType,
+  boothTypes,
+  showId,
+}: {
+  booth: Booth;
+  boothType: BoothType | undefined;
+  boothTypes: BoothType[];
+  showId: string;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <div className="col-span-full rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
+        <EditBoothForm
+          booth={booth}
+          boothTypes={boothTypes}
+          showId={showId}
+          onDone={() => setEditing(false)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="flex flex-col items-start gap-1 rounded-lg border border-zinc-300 p-3 text-left dark:border-zinc-700"
+    >
+      <span className="font-medium">{booth.organiser_ref}</span>
+      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+        {boothType?.name ?? "Unknown type"}
+      </span>
+      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+        {STATUS_LABELS[booth.status] ?? booth.status}
+      </span>
+      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+        {booth.map_x === null ? "Not placed" : "Placed"}
+      </span>
+    </button>
+  );
+}
+
+// Booths don't have a real parent/child island relationship yet (no
+// BoothGroup -- see CLAUDE.md's "Deliberate simplifications"), so an
+// "island" here just means every booth sharing an island-category booth
+// type. Grouping by booth_type_id and collapsing those groups behind an
+// expand toggle is what makes an island's individual booths read as
+// "sub booths within it" despite there being no real grouping in the data.
 export function BoothList({
   booths,
   boothTypes,
@@ -131,7 +183,7 @@ export function BoothList({
   boothTypes: BoothType[];
   showId: string;
 }) {
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedTypeId, setExpandedTypeId] = useState<string | null>(null);
 
   if (booths.length === 0) {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">No booths yet.</p>;
@@ -139,45 +191,69 @@ export function BoothList({
 
   const boothTypeById = new Map(boothTypes.map((boothType) => [boothType.id, boothType]));
 
+  const boothsByType = new Map<string, Booth[]>();
+  for (const booth of booths) {
+    const group = boothsByType.get(booth.booth_type_id);
+    if (group) {
+      group.push(booth);
+    } else {
+      boothsByType.set(booth.booth_type_id, [booth]);
+    }
+  }
+
   return (
-    <ul className="flex flex-col gap-2">
-      {booths.map((booth) => (
-        <li
-          key={booth.id}
-          className="flex flex-col gap-2 rounded-lg border border-zinc-300 px-4 py-3 dark:border-zinc-700"
-        >
-          {editingId === booth.id ? (
-            <EditBoothForm
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+      {[...boothsByType.entries()].map(([boothTypeId, typeBooths]) => {
+        const boothType = boothTypeById.get(boothTypeId);
+
+        if (boothType?.category !== "island") {
+          return typeBooths.map((booth) => (
+            <BoothCard
+              key={booth.id}
               booth={booth}
+              boothType={boothType}
               boothTypes={boothTypes}
               showId={showId}
-              onDone={() => setEditingId(null)}
             />
-          ) : (
-            <div className="flex items-center justify-between gap-3">
+          ));
+        }
+
+        const isExpanded = expandedTypeId === boothTypeId;
+
+        return (
+          <div key={boothTypeId} className="col-span-full flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setExpandedTypeId(isExpanded ? null : boothTypeId)}
+              className="flex items-center justify-between gap-2 rounded-lg border border-zinc-300 p-3 text-left dark:border-zinc-700"
+            >
               <span className="flex flex-col">
-                <span className="font-medium">{booth.organiser_ref}</span>
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {boothTypeById.get(booth.booth_type_id)?.name ?? "Unknown type"} ·{" "}
-                  {STATUS_LABELS[booth.status] ?? booth.status}
+                <span className="font-medium">{boothType.name}</span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {typeBooths.length} booth{typeBooths.length === 1 ? "" : "s"}
                 </span>
               </span>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {booth.map_x === null ? "Not placed" : "Placed"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setEditingId(booth.id)}
-                  className="text-sm text-zinc-500 underline dark:text-zinc-400"
-                >
-                  Edit
-                </button>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                {isExpanded ? "Hide" : "Show"} booths
+              </span>
+            </button>
+
+            {isExpanded ? (
+              <div className="grid grid-cols-2 gap-2 border-l-2 border-zinc-200 pl-3 sm:grid-cols-3 md:grid-cols-4 dark:border-zinc-800">
+                {typeBooths.map((booth) => (
+                  <BoothCard
+                    key={booth.id}
+                    booth={booth}
+                    boothType={boothType}
+                    boothTypes={boothTypes}
+                    showId={showId}
+                  />
+                ))}
               </div>
-            </div>
-          )}
-        </li>
-      ))}
-    </ul>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
   );
 }
