@@ -21,6 +21,11 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
    - `0002_users_roles_and_vendor_profiles.sql` — `users`, `user_roles`,
      and `vendor_profiles` tables with RLS, and the trigger that creates a
      `users` row on signup. Used by `/signup`, `/login`, and `/dashboard`.
+   - `0003_organisers_and_shows.sql` — `organisers` and `shows` tables
+     with RLS (`platform_admin` sees/writes everything, `organiser_staff`
+     scoped to their own organiser), plus RLS letting `platform_admin`
+     look up any user by email. Used by `/dashboard` (Organisers/Shows
+     sections) and `/dashboard/organisers/[organiserId]`.
 
 ### Dev server
 
