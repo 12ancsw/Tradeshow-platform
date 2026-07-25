@@ -47,9 +47,30 @@ assuming an automated payment webhook will flip it.
 ## Project layout
 
 - `src/app/` — App Router routes
-- `src/lib/supabase.ts` — Supabase client factory, reads env vars
+- `src/lib/supabase/anon.ts` — plain anon-key client factory (used by the `/`
+  connectivity test page)
+- `src/lib/supabase/server.ts` — cookie-aware Supabase client for Server
+  Components and Server Actions (auth-aware, reads the session cookie)
+- `src/lib/supabase/middleware.ts` + `src/proxy.ts` — refreshes the auth
+  session cookie on every request. Note: this Next.js version renamed the
+  `middleware.ts` convention to `proxy.ts` (see AGENTS.md) — don't
+  reintroduce a `middleware.ts` file, it won't run.
 - `supabase/migrations/` — hand-applied SQL migrations (run in the Supabase
   SQL editor, or via the Supabase CLI once one is wired up)
+
+## Auth
+
+Supabase Auth, email/password only for now. `public.profiles` (see
+`supabase/migrations/0002_profiles.sql`) holds one row per auth user with a
+`role` enum (`vendor` | `organiser` | `platform_admin`), auto-populated by a
+DB trigger on `auth.users` insert from the `role` passed in signup
+`user_metadata`. `platform_admin` is never selectable at signup — it's set
+manually (e.g. a SQL update) by whoever operates the platform.
+
+- `/signup` — email/password + Vendor-or-Organiser role choice
+- `/login` — email/password
+- `/dashboard` — placeholder post-login landing page; redirects to `/login`
+  if there's no session
 
 ## Notes
 
@@ -58,3 +79,12 @@ assuming an automated payment webhook will flip it.
   `supabase/migrations/0001_get_server_time.sql`) and shows "Connected to
   Supabase" with the returned timestamp on success, or a clear error
   otherwise.
+
+## Progress Log
+
+- **Supabase connectivity** — done. `/` verifies the app can reach Supabase.
+- **Auth (email/password + role)** — done. Signup/login/dashboard above,
+  backed by `profiles` table + RLS + auto-create trigger. Not yet done:
+  password reset, email verification UX beyond the generic "check your
+  email" message, and any role-gated routes/UI beyond the dashboard's
+  plain-text role display.
