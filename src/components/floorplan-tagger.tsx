@@ -11,6 +11,9 @@ type Booth = {
 };
 
 const NUDGE_STEP = 0.5;
+const ZOOM_STEP = 0.5;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 4;
 
 function clamp(value: number) {
   return Math.min(100, Math.max(0, value));
@@ -20,6 +23,7 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
   const [selectedBoothId, setSelectedBoothId] = useState("");
   const [pendingPosition, setPendingPosition] = useState<{ x: number; y: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(MIN_ZOOM);
   const [isPending, startTransition] = useTransition();
 
   const unplacedCount = booths.filter((booth) => booth.map_x === null).length;
@@ -36,6 +40,10 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
     );
   }
 
+  // Coordinates are computed against this element's own bounding rect (not
+  // the scrollable outer container's), so they stay correct however far
+  // it's zoomed in or scrolled -- important for placing several booths
+  // close together within an island's footprint.
   function handleImageClick(event: MouseEvent<HTMLDivElement>) {
     if (!selectedBoothId) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -52,6 +60,14 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
 
   function nudge(dx: number, dy: number) {
     setPendingPosition((prev) => (prev ? { x: clamp(prev.x + dx), y: clamp(prev.y + dy) } : prev));
+  }
+
+  function zoomIn() {
+    setZoom((z) => Math.min(MAX_ZOOM, z + ZOOM_STEP));
+  }
+
+  function zoomOut() {
+    setZoom((z) => Math.max(MIN_ZOOM, z - ZOOM_STEP));
   }
 
   function confirmPlacement() {
@@ -100,35 +116,74 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
         ) : null}
       </div>
 
-      <div
-        onClick={handleImageClick}
-        className="relative w-full touch-pan-x touch-pan-y overflow-auto rounded-lg border border-zinc-300 dark:border-zinc-700"
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={imageUrl} alt="Floorplan" className="block w-full select-none" draggable={false} />
-
-        {booths
-          .filter((booth) => booth.map_x !== null && booth.map_y !== null && booth.id !== selectedBoothId)
-          .map((booth) => (
-            <button
-              key={booth.id}
-              type="button"
-              onClick={(event) => handlePinClick(booth, event)}
-              style={{ left: `${booth.map_x}%`, top: `${booth.map_y}%` }}
-              className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-black px-2 py-1 text-xs font-medium text-white shadow dark:bg-white dark:text-black"
-            >
-              {booth.organiser_ref}
-            </button>
-          ))}
-
-        {pendingPosition ? (
-          <span
-            style={{ left: `${pendingPosition.x}%`, top: `${pendingPosition.y}%` }}
-            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-600 px-2 py-1 text-xs font-medium text-white shadow"
-          >
-            {selectedBooth?.organiser_ref ?? "?"}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">
+          Zoom: {Math.round(zoom * 100)}%{" "}
+          <span className="text-zinc-400 dark:text-zinc-500">
+            — zoom in to place booths precisely within an island
           </span>
-        ) : null}
+        </span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={zoomOut}
+            disabled={zoom <= MIN_ZOOM}
+            aria-label="Zoom out"
+            className="h-9 w-9 rounded-lg border border-zinc-300 text-lg disabled:opacity-40 dark:border-zinc-700"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={zoomIn}
+            disabled={zoom >= MAX_ZOOM}
+            aria-label="Zoom in"
+            className="h-9 w-9 rounded-lg border border-zinc-300 text-lg disabled:opacity-40 dark:border-zinc-700"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      <div className="max-h-[70vh] w-full touch-pan-x touch-pan-y overflow-auto rounded-lg border border-zinc-300 dark:border-zinc-700">
+        <div
+          onClick={handleImageClick}
+          className="relative"
+          style={{ width: `${zoom * 100}%` }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt="Floorplan"
+            className="block w-full select-none"
+            draggable={false}
+          />
+
+          {booths
+            .filter(
+              (booth) => booth.map_x !== null && booth.map_y !== null && booth.id !== selectedBoothId,
+            )
+            .map((booth) => (
+              <button
+                key={booth.id}
+                type="button"
+                onClick={(event) => handlePinClick(booth, event)}
+                style={{ left: `${booth.map_x}%`, top: `${booth.map_y}%` }}
+                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-black px-2 py-1 text-xs font-medium text-white shadow dark:bg-white dark:text-black"
+              >
+                {booth.organiser_ref}
+              </button>
+            ))}
+
+          {pendingPosition ? (
+            <span
+              style={{ left: `${pendingPosition.x}%`, top: `${pendingPosition.y}%` }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-600 px-2 py-1 text-xs font-medium text-white shadow"
+            >
+              {selectedBooth?.organiser_ref ?? "?"}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {selectedBoothId && pendingPosition ? (

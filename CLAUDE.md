@@ -239,12 +239,16 @@ inventory. All four live on a new per-show page,
   `security definer` pattern as `is_platform_admin()`/
   `is_organiser_staff_for()`) — `platform_admin` or `organiser_staff` for
   that show's organiser can read/write. Reused for the storage policy too.
-- **Floorplan tagging** (`src/components/floorplan-tagger.tsx`): per the
-  architecture doc's mobile guidance (§1), pinch-zoom/pan come from the
-  browser's native handling of a plain `<img>` in a scrollable container
-  (no custom gesture JS); tap-to-place always goes through an explicit
-  "Place [booth] here? Confirm/Cancel" step rather than saving on tap, plus
-  four nudge buttons (±0.5%) for fine adjustment before confirming.
+- **Floorplan tagging** (`src/components/floorplan-tagger.tsx`): explicit
+  zoom in/out buttons (100–400%, since precisely placing several booths
+  close together within an island's footprint needs more control than
+  native pinch-zoom alone gives), plus native pan via a scrollable
+  container. Booth pins and click-to-place coordinates are computed
+  against the zoomable inner surface's own bounding rect, not the
+  scrollable outer container's, so placement stays accurate at any zoom
+  level or scroll position. Tap-to-place always goes through an explicit
+  "Place [booth] here? Confirm/Cancel" step rather than saving on tap,
+  plus four nudge buttons (±0.5%) for fine adjustment before confirming.
 - **Deliberate simplifications** vs. the architecture doc's fuller model
   (§2): no islands (`BoothGroup`/`parent_group_id`/`island_layout_template`
   — a booth type of category `island` doesn't auto-generate sub-slots, you
