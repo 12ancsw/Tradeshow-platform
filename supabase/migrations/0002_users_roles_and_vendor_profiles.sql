@@ -2,6 +2,15 @@
 -- shape: one User account per person, holding zero or more UserRoles.
 -- See card-show-platform-architecture.md, section 3 "Persona → Module
 -- Mapping" / "One signup/login for everyone."
+--
+-- Safe to run against a database that already has the old profiles-era
+-- objects (an earlier revision of this migration) — this drops them
+-- first. If your database has never seen a `public.profiles` table, all
+-- of this is a no-op.
+drop trigger if exists on_auth_user_created on auth.users;
+drop function if exists public.handle_new_user();
+drop table if exists public.profiles;
+drop type if exists public.user_role;
 
 create type public.app_role as enum ('platform_admin', 'organiser_staff', 'vendor', 'attendee');
 
