@@ -6,6 +6,7 @@ import { OrganiserList } from "@/components/organiser-list";
 import { OrganiserForm } from "@/components/organiser-form";
 import { ShowList } from "@/components/show-list";
 import { ShowForm } from "@/components/show-form";
+import { MyApplications } from "@/components/my-applications";
 
 const ROLE_LABELS: Record<AppRole, string> = {
   platform_admin: "Platform Admin",
@@ -17,6 +18,21 @@ const ROLE_LABELS: Record<AppRole, string> = {
 type Organiser = { id: string; name: string; slug: string; status: string };
 type Show = { id: string; name: string; start_date: string; end_date: string; venue_name: string };
 type OrganiserStaffEntry = { organiserId: string; organiser: Organiser | null; shows: Show[] };
+type Application = {
+  id: string;
+  showId: string;
+  showName: string;
+  showPaymentInstructions: string | null;
+  phaseName: string;
+  status: string;
+  isSelfSelected: boolean;
+  paymentStatus: string;
+  amount: number;
+  proofUrl: string | null;
+  paymentNotes: string | null;
+  boothRefs: string[];
+  islandRef: string | null;
+};
 
 function roleKey(role: UserRoleRow) {
   return `${role.role}:${role.organiser_id ?? ""}`;
@@ -39,11 +55,13 @@ export function HomeContent({
   roles,
   allOrganisers,
   organiserStaffData,
+  myApplications,
 }: {
   name: string;
   roles: UserRoleRow[];
   allOrganisers?: Organiser[];
   organiserStaffData: OrganiserStaffEntry[];
+  myApplications: Application[];
 }) {
   const [activeKey, setActiveKey] = useState(roles.length > 0 ? roleKey(roles[0]) : "");
   const activeRole = roles.find((role) => roleKey(role) === activeKey) ?? roles[0];
@@ -109,6 +127,13 @@ export function HomeContent({
             <h3 className="font-medium">Create Show</h3>
             <ShowForm organiserId={activeStaffEntry.organiserId} />
           </div>
+        </section>
+      ) : null}
+
+      {activeRole?.role === "vendor" ? (
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold">My Applications</h2>
+          <MyApplications applications={myApplications} />
         </section>
       ) : null}
     </div>

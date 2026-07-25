@@ -55,6 +55,21 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
    - `0011_booth_type_cascade_deletion.sql` — changes `booths.booth_type_id`
      from blocking deletion to `on delete cascade`, so deleting a booth
      type also deletes the booths using it instead of failing.
+   - `0012_release_phases.sql` — `release_phases`, `release_phase_booth_types`,
+     `release_phase_island_types` tables with RLS, `booth_groups.status`,
+     and public read-access `SELECT` policies on `shows`/`booth_types`/
+     `booths`/`island_types`/`booth_groups`/`add_ons` (the first
+     vendor-facing read access in the app). Used by
+     `/dashboard/shows/[showId]/phases` and `/shows`.
+   - `0013_applications_and_payments.sql` — `applications`,
+     `application_booth_requests`, `payment_records` tables with RLS,
+     `booths.application_id`/`booth_groups.application_id`, three
+     `security definer` functions (`submit_application_assigned`,
+     `submit_application_self_selected`, `submit_payment_proof`), a
+     non-public `payment-proofs` Storage bucket, and an RLS policy letting
+     organiser staff see their applicants' names. Used by `/shows/[showId]`,
+     `/dashboard` (My Applications), and
+     `/dashboard/shows/[showId]/applications`.
 
 ### Dev server
 

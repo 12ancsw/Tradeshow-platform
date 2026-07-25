@@ -8,6 +8,8 @@ const TABS = [
   { segment: "booths", label: "Booths" },
   { segment: "floorplan", label: "Floorplan" },
   { segment: "islands", label: "Islands" },
+  { segment: "phases", label: "Phases" },
+  { segment: "applications", label: "Applications" },
 ];
 
 export function ShowTabs({ showId }: { showId: string }) {

@@ -88,7 +88,13 @@ assuming an automated payment webhook will flip it.
   `deleteBoothGroup`, `updateIslandPosition`, `setBoothGroup`),
   `subvendors.ts` (`createSubvendor`, `updateSubvendor`,
   `deleteSubvendor`), `subvendor-claims.ts` (`claimSubvendor`,
-  `updateOwnSubvendor`).
+  `updateOwnSubvendor`), `release-phases.ts` (`createReleasePhase`,
+  `updateReleasePhase`, `updateReleasePhaseStatus`, `deleteReleasePhase`,
+  `attachBoothTypeToPhase`, `detachBoothTypeFromPhase`,
+  `attachIslandTypeToPhase`, `detachIslandTypeFromPhase`),
+  `applications.ts` (`applyAssigned`, `applySelfSelected`), `payments.ts`
+  (`submitPaymentProof`), `allocation.ts` (`allocateBoothsToApplication`,
+  `allocateIslandToApplication`, `verifyPayment`, `rejectPayment`).
 - `src/components/` — shared UI: `status-badge.tsx`, `organiser-list.tsx`,
   `organiser-form.tsx`, `assign-staff-form.tsx`, `show-list.tsx`,
   `show-form.tsx`, `booth-type-list.tsx`, `booth-type-form.tsx`,
@@ -96,9 +102,12 @@ assuming an automated payment webhook will flip it.
   `floorplan-upload-form.tsx`, `floorplan-tagger.tsx`, `show-tabs.tsx`,
   `island-type-list.tsx`, `island-type-form.tsx`, `booth-group-manager.tsx`,
   `booth-group-form.tsx`, `subvendor-list.tsx`, `subvendor-form.tsx`,
-  `subvendor-invite-claim.tsx` — used across `/dashboard`,
-  `/dashboard/organisers/[organiserId]`, `/dashboard/shows/[showId]/*`,
-  and `/subvendor-invite/[subvendorId]`.
+  `subvendor-invite-claim.tsx`, `release-phase-manager.tsx`,
+  `release-phase-form.tsx`, `read-only-floorplan.tsx`, `apply-form.tsx`,
+  `application-review.tsx`, `my-applications.tsx`, `payment-proof-form.tsx`
+  — used across `/dashboard`, `/dashboard/organisers/[organiserId]`,
+  `/dashboard/shows/[showId]/*`, `/subvendor-invite/[subvendorId]`,
+  `/shows`, and `/shows/[showId]`.
 - `supabase/migrations/` — hand-applied SQL migrations (run in the
   Supabase SQL editor, or via the Supabase CLI once one is wired up)
 
@@ -451,6 +460,130 @@ new one.
   RPC functions are strictly additive, a second access path for the
   subvendor themselves.
 
+## Release Phases and Applications
+
+The first real vendor-facing flow: `public.release_phases`,
+`public.applications`, and `public.payment_records`
+(`supabase/migrations/0012_release_phases.sql`,
+`0013_applications_and_payments.sql`) let a vendor apply for booths or an
+island, and let organiser staff allocate and manually verify payment for
+those applications. This is the architecture doc's §2/§6/§7 core booking
+mechanic (`ReleasePhase`, `Application`, `PaymentRecord`), scoped down to
+what was actually asked for:
+
+- **Gating, not scheduling.** A `release_phase` is a manual
+  `draft | open | closed` toggle organiser staff flip themselves
+  (`/dashboard/shows/[showId]/phases`, `release-phase-manager.tsx`) — no
+  `starts_at`/`ends_at` automation, since nothing in this app runs on a
+  schedule. Only booth types / island types explicitly attached to an
+  `open` phase (`release_phase_booth_types`, `release_phase_island_types`
+  join tables) are applyable-to; a phase's `selection_fee_amount` is the
+  per-booth fee charged only when a vendor self-selects (see below).
+- **Public read access, for the first time.** Every table a vendor needs
+  to browse a show (`shows`, `booth_types`, `booths`, `island_types`,
+  `booth_groups`, `add_ons`) previously had organiser-only `SELECT`
+  policies; `0012` adds unrestricted `using (true)` `SELECT` policies
+  alongside them (Postgres ORs multiple permissive policies together, so
+  this is additive, not a replacement). `release_phases` and its join
+  tables instead expose only phases with `status = 'open'` — draft/closed
+  phases stay organiser-only-visible.
+- **`booth_groups.status`** (new column, same `booth_status` enum as
+  `booths`) — an island is now a bookable unit with its own
+  available/held/pending_payment/confirmed/blocked lifecycle, not just a
+  roster container.
+- **One choice per application, enforced server-side.** A vendor applies
+  for *either* up to 6 booths *or* exactly 1 island, never both, and
+  picks once whether the organiser assigns specific booths/an island
+  later (no fee) or they self-select specific, currently live+available
+  ones themselves right now (`release_phases.selection_fee_amount`
+  charged **per self-selected booth only — never for an island**,
+  self-selected or not). "Live+available" means `status = 'available'`
+  and placed on the floorplan (`map_x is not null`) — the same
+  availability rule drives both the "N available" counts a vendor sees
+  and what they're allowed to self-select.
+- **Why `security definer` RPC functions, not table RLS, for the vendor's
+  own writes**: applying touches several tables in one atomic step
+  (create the application, create its booth-type requests or lock
+  specific booths, create the payment record), and self-selection needs a
+  compare-and-swap against a live availability check to avoid a race
+  between two applicants picking the same booth. `submit_application_assigned`
+  and `submit_application_self_selected` (both in `0013`) do all of this
+  server-side in one transaction — if a self-selected booth/island was
+  just taken by someone else, the whole function raises and every insert
+  it already made rolls back. `submit_payment_proof` is narrower still:
+  it only ever moves `payment_records.proof_path`/`status` and
+  `applications.status` for the caller's own application, never
+  `verified`/`verified_by`/`amount`. All three mirror the pattern
+  `claim_booth_group_subvendor` established in `0009`.
+- **`applications`** — `show_id`, `release_phase_id`, `applicant_user_id`,
+  `is_self_selected`, `requested_island_type_id` (nullable), `status`
+  (`submitted → allocated → payment_pending → confirmed`, plus
+  `rejected`/`cancelled`). Self-selected applications start at
+  `allocated` (their booths/island are already locked in by the RPC that
+  created them); organiser-assigned ones start at `submitted` and need a
+  human allocation step.
+- **`application_booth_requests`** — `application_id`, `booth_type_id`,
+  `quantity`; only populated for organiser-assigned applications (the
+  *ask*, not the fulfilment — specific booths, once allocated, are
+  recorded directly via `booths.application_id`).
+- **`booths.application_id` / `booth_groups.application_id`** (nullable
+  FKs, `on delete set null`) — which application currently holds a
+  booth/island. Organiser allocation
+  (`/dashboard/shows/[showId]/applications`, `application-review.tsx`,
+  `src/lib/actions/allocation.ts`) sets these directly through the
+  existing `can_manage_show`-gated `UPDATE` policies on `booths`/
+  `booth_groups` — organiser writes are trusted and don't need the RPC
+  narrowing vendor writes do.
+- **`payment_records`** — `application_id` (`unique`, so 1:1),
+  `amount` (computed server-side at apply time — booth/island type prices
+  plus the per-booth selection fee if self-selected — never trusted from
+  the client), `proof_path`, `status`
+  (`awaiting_proof | proof_submitted | verified | rejected | waived`,
+  `waived` included for a future fee-waiver flow that doesn't exist yet),
+  `verified_by`/`verified_at`, `notes`. Verifying
+  (`verifyPayment` in `allocation.ts`) flips the payment record, the
+  application, and its held booths/island all to `confirmed` together;
+  rejecting releases whatever was held back to `available` rather than
+  leaving it stranded on a rejected application.
+- **Storage**: a **non-public** `payment-proofs` bucket (unlike
+  `floorplans`/`vendor-logos` — payment screenshots are sensitive),
+  objects at `{show_id}/{application_id}/{random}.{ext}`. Since it's not
+  public, viewing a proof means generating a signed URL server-side
+  (`createSignedUrl`, 1-hour expiry) wherever it's rendered — the
+  vendor's own "My Applications" list and the organiser's payment queue
+  each do this themselves.
+- **`public.users` gets one more read policy**: organiser staff can now
+  see the name/email of anyone who has applied to a show they manage
+  (`0013`, additive to `0002`'s self-only and `0003`'s platform_admin-only
+  policies) — needed to show "who is this application from" on the
+  allocation/verification screens.
+- **Vendor routes** (`/shows`, `/shows/[showId]`) are the first
+  vendor-facing UI in the app at all — everything built before this was
+  organiser-side. `/shows/[showId]` shows a **read-only** floorplan
+  (`read-only-floorplan.tsx` — no click handlers, pins colored by status
+  instead of category) plus booth/island type pricing and live
+  availability counts, then `apply-form.tsx` if logged in (sign up/log in
+  prompt otherwise, same pattern as the subvendor invite page — no
+  redirect-back after auth here either). **Self-selection is a checklist
+  of live+available booths/an island dropdown, not click-to-pick on the
+  floorplan image itself** — the floorplan tagger's write/edit machinery
+  is organiser-only tooling; building an equivalent click-to-select
+  interaction for vendors was cut from this pass as a deliberate scope
+  reduction.
+- **"My Applications"** lives in the existing role-switcher
+  (`home-content.tsx`, under the `vendor` context) rather than a separate
+  route, listing each application's status, allocated booths/island
+  (once known), amount due, payment instructions, and a proof-upload
+  form (`payment-proof-form.tsx`) once `allocated`/`payment_pending`.
+- **Deliberate simplifications vs. the architecture doc**: no booth hold
+  expiry/timeout (a `held` booth stays held until an organiser
+  allocates/rejects or verifies — no background job exists to release
+  it), no adjacency validation (self-selecting neighboring booths already
+  achieves this — no separate "adjacency" concept needed), no fee
+  waivers or refunds, no `VendorFieldPolicy`/consent, and applications
+  can't be cancelled or edited by the vendor after submission (only
+  proof upload is self-service).
+
 ## Notes
 
 - The `/` route is currently a connectivity test page: it calls a
@@ -524,6 +657,19 @@ new one.
   after signup/login (the visitor re-opens the link manually today), and
   email delivery of the invite link itself (organiser copies/shares it
   manually).
+- **Release phases and applications** — done, scoped as agreed (see
+  Release Phases and Applications above). Organiser staff manually toggle
+  a phase draft/open/closed and attach booth/island types to it; vendors
+  browse `/shows`/`/shows/[showId]` (the first vendor-facing UI in the
+  app), apply for up to 6 booths or 1 island under an open phase either
+  organiser-assigned or self-selected (fee applies per self-selected
+  booth, never for an island), upload payment proof from "My
+  Applications" in `/dashboard`, and organiser staff allocate
+  organiser-assigned applications plus verify/reject payment proofs from
+  the show's Applications tab. Not yet done: booth hold expiry, fee
+  waivers, refunds, cancelling/editing an application after submission,
+  `VendorFieldPolicy`/consent, and any VIP/attendee ticketing (separate
+  `PassType`/`PassAssignment` track).
 
 ## Before Launch
 
