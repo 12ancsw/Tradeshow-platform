@@ -133,7 +133,7 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
         </select>
         {unplacedCount > 0 ? (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {unplacedCount} booth{unplacedCount === 1 ? "" : "s"} not yet placed.
+            {`${unplacedCount} booth${unplacedCount === 1 ? "" : "s"} not yet placed.`}
           </p>
         ) : (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">

@@ -82,14 +82,18 @@ assuming an automated payment webhook will flip it.
   (`createShow`), `booth-types.ts` (`createBoothType`, `updateBoothType`,
   `deleteBoothType`), `booths.ts` (`createBooth`, `updateBooth`,
   `updateBoothPosition`), `add-ons.ts` (`createAddOn`, `updateAddOn`,
-  `deleteAddOn`), `floorplans.ts` (`uploadFloorplan`).
+  `deleteAddOn`), `floorplans.ts` (`uploadFloorplan`), `booth-groups.ts`
+  (`createBoothGroup`, `updateBoothGroup`, `deleteBoothGroup`,
+  `setBoothGroup`), `subvendors.ts` (`createSubvendor`, `updateSubvendor`,
+  `deleteSubvendor`).
 - `src/components/` — shared UI: `status-badge.tsx`, `organiser-list.tsx`,
   `organiser-form.tsx`, `assign-staff-form.tsx`, `show-list.tsx`,
   `show-form.tsx`, `booth-type-list.tsx`, `booth-type-form.tsx`,
   `booth-list.tsx`, `booth-form.tsx`, `add-on-list.tsx`, `add-on-form.tsx`,
-  `floorplan-upload-form.tsx`, `floorplan-tagger.tsx`, `show-tabs.tsx` —
-  used across `/dashboard`, `/dashboard/organisers/[organiserId]`, and
-  `/dashboard/shows/[showId]/*`.
+  `floorplan-upload-form.tsx`, `floorplan-tagger.tsx`, `show-tabs.tsx`,
+  `booth-group-manager.tsx`, `booth-group-form.tsx`, `subvendor-list.tsx`,
+  `subvendor-form.tsx` — used across `/dashboard`,
+  `/dashboard/organisers/[organiserId]`, and `/dashboard/shows/[showId]/*`.
 - `supabase/migrations/` — hand-applied SQL migrations (run in the
   Supabase SQL editor, or via the Supabase CLI once one is wired up)
 
@@ -192,11 +196,12 @@ above) picks which console's content renders, per the architecture doc's
 `public.booth_types`, `public.booths`, `public.add_ons`, and
 `public.floorplan_versions` (`supabase/migrations/0004_booth_types_booths_and_floorplans.sql`
 onward) let `platform_admin`/`organiser_staff` set up a show's booth
-inventory. They live across three separate per-show tab screens rather
+inventory. They live across four separate per-show tab screens rather
 than one long page — `/dashboard/shows/[showId]/booth-types` (booth types
 + add-ons together, since add-ons are the other thing an organiser
 configures once per show before opening bookings), `/dashboard/shows/[showId]/booths`,
-and `/dashboard/shows/[showId]/floorplan` — sharing a layout
+`/dashboard/shows/[showId]/floorplan`, and `/dashboard/shows/[showId]/islands`
+(see Booth Groups (Islands) and Subvendors below) — sharing a layout
 (`src/app/dashboard/shows/[showId]/layout.tsx`) that fetches the show
 once, renders the show name/dates header, and renders `ShowTabs`
 (`src/components/show-tabs.tsx`, a client component using `usePathname()`
@@ -290,10 +295,66 @@ the tab the mutating form lives on.
   repositioning an already-placed booth is done by tapping its pin
   directly on the floorplan, not through the dropdown.
 - **Deliberate simplifications** vs. the architecture doc's fuller model
-  (§2): no islands (`BoothGroup`/`parent_group_id`/`island_layout_template`
-  — a booth type of category `island` doesn't auto-generate sub-slots, you
-  create booths one at a time same as any other category), no release
-  phases, no floorplan draft/publish reconciliation. All future work.
+  (§2): no `island_layout_template` (a booth type of category `island`
+  doesn't auto-generate sub-slots, you create booths one at a time same as
+  any other category, then assign existing booths into a `booth_groups`
+  row separately — see Booth Groups below for how much of the real
+  `BoothGroup` model that does and doesn't cover), no release phases, no
+  floorplan draft/publish reconciliation. All future work.
+
+## Booth Groups (Islands) and Subvendors
+
+`public.booth_groups` and `public.booth_group_subvendors`
+(`supabase/migrations/0008_booth_groups_and_subvendors.sql`) are a
+deliberately narrow slice of the architecture doc's `BoothGroup` model
+(§2), surfaced on the `/dashboard/shows/[showId]/islands` tab
+(`src/components/booth-group-manager.tsx`). What it's *for*: letting an
+organiser record, per island, who the subvendors sharing it are —
+business details, a logo, and a free-text note on passes owed — as a
+reference roster, not a booking mechanic. It's explicitly **not** wired
+into pricing or applications: an island booth's price is still just its
+booth type's `base_price` like any other booth, there's no
+primary-vendor-pays-for-the-whole-island flow, and subvendor entries
+aren't linked to a real vendor account.
+
+- **`booth_groups`** — `show_id`, `organiser_ref` (e.g. "Island A",
+  unique per show). Editable/deletable in place, same pattern as booth
+  types. Deleting a group cascades its subvendor roster
+  (`booth_group_subvendors.booth_group_id on delete cascade`) but only
+  unassigns its booths (`booths.booth_group_id on delete set null`) —
+  real booth inventory is never deleted as a side effect, same reasoning
+  as booth type deletion not cascading onto booths.
+- **`booths.booth_group_id`** (nullable FK, added by this migration) —
+  which island a booth belongs to, assigned as a separate step from booth
+  creation on the Islands tab (`setBoothGroup` in
+  `src/lib/actions/booth-groups.ts`, called directly from a client
+  component like `updateBoothPosition` rather than through a `<form>`).
+  Only booths whose booth type is category `island` are offered for
+  assignment; this isn't a DB-level constraint (no CHECK can reach across
+  to `booth_types`), just what the UI offers.
+- **`booth_group_subvendors`** — `show_id` (denormalized, same pattern as
+  `booths.show_id`), `booth_group_id`, `booth_id` (nullable FK, which
+  specific sub-slot this subvendor occupies — a partial unique index
+  enforces at most one subvendor per booth), `business_name` (required),
+  `contact_email`, `contact_phone`, `logo_path`, `notes`, `passes_note`
+  (free text, e.g. "2x vendor passes" — not a real `PassType`/
+  `PassAssignment` integration, since neither exists yet). Full CRUD
+  (`src/lib/actions/subvendors.ts`, `src/components/subvendor-form.tsx`/
+  `subvendor-list.tsx`), same inline edit/delete pattern as booth types
+  and add-ons. Logo upload reuses the floorplan upload's pattern (upload
+  to Storage first, then write the path) inside the same server action as
+  the rest of the form fields, rather than a separate upload step.
+- **No real vendor accounts involved.** Subvendor entries are organiser-
+  entered free text, not linked to a `public.users` row — there's no
+  `Application`/vendor-assignment flow yet for a real account to hang off
+  of (same reasoning `add_ons.mandatory` isn't enforced against anything
+  yet). Not `BoothGroupMembership`/primary-vs-sub vendor roles either.
+- **Storage**: a public-read `vendor-logos` bucket (same reasoning as
+  `floorplans` — business logos aren't sensitive), objects at
+  `{show_id}/{random}.{ext}`, RLS via `can_manage_show` on the first path
+  segment. Replacing a logo uploads a new file at a new path rather than
+  overwriting (same pattern as floorplan re-uploads); the old file is
+  simply orphaned rather than deleted.
 
 ## Notes
 
@@ -338,11 +399,22 @@ the tab the mutating form lives on.
   image (tap-to-place with a confirm step and nudge controls). Booth
   types and add-ons are fully editable and deletable in place; booths are
   editable but not (yet) deletable. Not yet done: deleting booths,
-  islands (`BoothGroup`), release phases, floorplan draft/publish
-  reconciliation, applications (including actually enforcing `mandatory`
-  add-ons), payments, and any vendor/attendee-facing UI — the rest of the
-  Organiser/Show/Booth/Application domain model from the architecture doc
-  (§2).
+  release phases, floorplan draft/publish reconciliation, applications
+  (including actually enforcing `mandatory` add-ons), payments, and any
+  vendor/attendee-facing UI — the rest of the Organiser/Show/Booth/
+  Application domain model from the architecture doc (§2).
+- **Booth groups (islands) and subvendors** — done, as a deliberately
+  narrow slice. See Booth Groups (Islands) and Subvendors above: the
+  `/dashboard/shows/[showId]/islands` tab lets `platform_admin`/
+  `organiser_staff` create named islands, assign existing island-category
+  booths into them, and record each island's subvendors (business name,
+  logo, contact info, notes, a free-text passes note) — a reference
+  roster, not a booking mechanic. Not wired into pricing, applications,
+  or any real vendor account. Not yet done: `island_layout_template`
+  (auto-generating sub-slots), `BoothGroupMembership`/primary-vs-sub
+  vendor roles, a real `PassType`/`PassAssignment` system, and linking
+  subvendor entries to actual vendor accounts once an Application flow
+  exists.
 
 ## Before Launch
 

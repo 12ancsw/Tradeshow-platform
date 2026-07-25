@@ -234,7 +234,7 @@ export function BoothList({
                 </span>
               </span>
               <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                {isExpanded ? "Hide" : "Show"} booths
+                {`${isExpanded ? "Hide" : "Show"} booths`}
               </span>
             </button>
 

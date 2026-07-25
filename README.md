@@ -38,6 +38,10 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
    - `0007_add_ons_and_booth_type_deletion.sql` — `add_ons` table with
      RLS (show-level, optionally `mandatory`), plus a `booth_types` delete
      policy so organisers can remove booth types.
+   - `0008_booth_groups_and_subvendors.sql` — `booth_groups` (islands) and
+     `booth_group_subvendors` tables with RLS, a `booths.booth_group_id`
+     column, and a public `vendor-logos` Storage bucket. Used by
+     `/dashboard/shows/[showId]/islands`.
 
 ### Dev server
 
