@@ -18,9 +18,11 @@ This file tracks what's actually implemented and where.
 
 Multi-tenant. An `organiser_staff` role is scoped to one organiser via
 `user_roles.organiser_id`; every other role (`platform_admin`, `vendor`,
-`attendee`) is platform-wide. There's no `organisers` table yet (see
-Progress Log) — `user_roles.organiser_id` is an unconstrained nullable
-column for now, ready for that table once it's built.
+`attendee`) is platform-wide. `public.organisers` (see
+`supabase/migrations/0003_organisers_and_shows.sql`) is the tenant table
+— `name`, `slug`, `status` (`pending` | `active` | `suspended`, defaults
+to `active` since only `platform_admin` creates them and does so
+deliberately). `public.shows` belongs to one organiser via `organiser_id`.
 
 ## Personas
 
@@ -75,6 +77,13 @@ assuming an automated payment webhook will flip it.
   reintroduce a `middleware.ts` file, it won't run.
 - `src/lib/auth.ts` — `getCurrentUserWithRoles()` helper (session user,
   `users.name`, and every `user_roles` row), used by `/dashboard`.
+- `src/lib/actions/` — Server Actions shared across routes:
+  `organisers.ts` (`createOrganiser`, `assignOrganiserStaff`), `shows.ts`
+  (`createShow`).
+- `src/components/` — shared UI: `status-badge.tsx`, `organiser-list.tsx`,
+  `organiser-form.tsx`, `assign-staff-form.tsx`, `show-list.tsx`,
+  `show-form.tsx` — used by both `/dashboard` (as `platform_admin` or
+  `organiser_staff`) and `/dashboard/organisers/[organiserId]`.
 - `supabase/migrations/` — hand-applied SQL migrations (run in the
   Supabase SQL editor, or via the Supabase CLI once one is wired up)
 
@@ -127,6 +136,50 @@ nav/home screen once those exist). Zero roles is a normal, expected state
 right now, not an error — it just means "hasn't applied to a show or
 gotten a ticket yet."
 
+## Organisers and Shows
+
+`public.organisers` and `public.shows` (`supabase/migrations/0003_organisers_and_shows.sql`)
+back the Platform Admin and Organiser consoles, both of which live inside
+`/dashboard` rather than as separate routes — the role switcher (see Auth
+above) picks which console's content renders, per the architecture doc's
+"whichever context is active determines what the home screen shows."
+
+- **`organisers`** — `name`, `slug` (auto-generated from `name`), `status`.
+- **`shows`** — `organiser_id`, `name`, `start_date`/`end_date` (`end_date
+  >= start_date` enforced by a check constraint), `venue_name`,
+  `payment_instructions` (free text), `active_floorplan_version_id`
+  (nullable, unconstrained — no `floorplan_versions` table exists yet).
+- **RLS**: `public.is_platform_admin()` and `public.is_organiser_staff_for(organiser_id)`
+  are `security definer` helper functions (avoid recursive RLS lookups
+  against `user_roles`, same pattern as the removed `is_platform_admin()`
+  from an earlier iteration of this schema — recreated here against
+  `user_roles` instead of the removed `profiles` table). `platform_admin`
+  can read/write every row on both tables; `organiser_staff` can read/write
+  only rows where `organiser_id` matches a `user_roles` row they hold.
+  Only `platform_admin` can create organisers; both `platform_admin` and
+  `organiser_staff` (for their own organiser) can create shows.
+- **Granting `organiser_staff`**: the *only* path — no self-serve, ever.
+  `platform_admin`, from an organiser's detail page
+  (`/dashboard/organisers/[organiserId]`), enters an existing user's email;
+  `assignOrganiserStaff` looks them up in `public.users` (a new RLS policy
+  lets `platform_admin` read every `users`/`user_roles` row, beyond the
+  self-only policies from `0002_users_roles_and_vendor_profiles.sql`) and
+  inserts a `user_roles` row with `granted_by` set to the granting admin.
+- **`/dashboard` as `platform_admin`**: an "Organisers" section — list of
+  every organiser (linking to its detail page) plus a "Create Organiser"
+  form (name only; slug and `active` status are automatic).
+- **`/dashboard/organisers/[organiserId]`**: platform-admin-only detail
+  page for one organiser — its shows, a "Create Show" form, and the
+  "Assign Organiser Staff" form. Superuser access: any organiser, not just
+  ones the admin also staffs.
+- **`/dashboard` as `organiser_staff`**: a "Shows" section scoped to
+  whichever organiser that specific role grant is for (the role switcher
+  already keys each context by `role:organiser_id`, so holding
+  `organiser_staff` for multiple organisers "just works" — switching
+  shows each one's shows separately) — list of shows plus a "Create Show"
+  form. No organiser-detail editing or staff-assignment here; that's
+  admin-only.
+
 ## Notes
 
 - The `/` route is currently a connectivity test page: it calls a
@@ -149,13 +202,21 @@ gotten a ticket yet."
   `vendor`/`attendee` roles get granted later, inside a future show
   application / ticket-purchase flow (not built yet). `/dashboard` handles
   the zero-role state gracefully instead of forcing a redirect. Not yet
-  done: `platform_admin`/`organiser_staff` grant flow (schema and RLS
-  already support it — see `user_roles.granted_by`/`organiser_id` — just
-  no UI yet), the show application / ticket-purchase flow that will
-  actually grant `vendor`/`attendee`, password reset, email verification
-  UX beyond the generic "check your email" message, `VendorFieldPolicy`/
-  `VendorFieldConsent`, and the entire Organiser/Show/Booth/Application
-  domain model from the architecture doc (§2) — none of that exists yet.
+  done: the show application / ticket-purchase flow that will actually
+  grant `vendor`/`attendee`, password reset, email verification UX beyond
+  the generic "check your email" message, `VendorFieldPolicy`/
+  `VendorFieldConsent`.
+- **Organisers, Shows, and the `organiser_staff` grant flow** — done. See
+  Organisers and Shows above for the full picture: `organisers`/`shows`
+  tables with RLS, `platform_admin`'s "Organisers" section and per-organiser
+  detail page (create organisers, create shows anywhere, assign
+  `organiser_staff` by email), and `organiser_staff`'s own "Shows" section
+  in `/dashboard`, both surfaced through the existing role switcher rather
+  than as separate routes. Not yet done: editing organisers/shows after
+  creation, floorplan upload (`active_floorplan_version_id` exists but
+  nothing sets it), the rest of the Organiser/Show/Booth/Application
+  domain model from the architecture doc (§2) — booth types, release
+  phases, applications, payments — and any vendor/attendee-facing UI.
 
 ## Before Launch
 
