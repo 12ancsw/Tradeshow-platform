@@ -12,9 +12,14 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
    `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. In
    production (Vercel) these are set as project environment variables
    instead.
-2. Run `supabase/migrations/0001_get_server_time.sql` against your Supabase
-   project (via the SQL editor, or `supabase db push` if you have the CLI
-   linked) — the `/` test page calls this RPC to verify connectivity.
+2. Run the SQL files in `supabase/migrations/` against your Supabase project,
+   in order (via the SQL editor, or `supabase db push` if you have the CLI
+   linked):
+   - `0001_get_server_time.sql` — RPC the `/` test page calls to verify
+     connectivity.
+   - `0002_profiles.sql` — `profiles` table (with `role`) and the trigger
+     that populates it on signup, used by `/signup`, `/login`, and
+     `/dashboard`.
 
 ### Dev server
 
