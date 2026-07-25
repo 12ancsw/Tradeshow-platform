@@ -1,22 +1,14 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserWithRoles } from "@/lib/auth";
 import { logout } from "./actions";
+import { HomeContent } from "./home-content";
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const current = await getCurrentUserWithRoles();
 
-  if (!user) {
+  if (!current) {
     redirect("/login");
   }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -32,10 +24,8 @@ export default async function DashboardPage() {
         </form>
       </header>
 
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-12 text-center">
-        <p className="text-lg font-medium">
-          Logged in as {user.email}, role: {profile?.role ?? "unknown"}
-        </p>
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-12 text-center">
+        <HomeContent name={current.name ?? current.user.email ?? "there"} roles={current.roles} />
       </main>
     </div>
   );
