@@ -313,9 +313,11 @@ organiser record, per island, who the subvendors sharing it are —
 business details, a logo, and a free-text note on passes owed — as a
 reference roster, not a booking mechanic. It's explicitly **not** wired
 into pricing or applications: an island booth's price is still just its
-booth type's `base_price` like any other booth, there's no
-primary-vendor-pays-for-the-whole-island flow, and subvendor entries
-aren't linked to a real vendor account.
+booth type's `base_price` like any other booth, and there's no
+primary-vendor-pays-for-the-whole-island flow. A subvendor entry can
+either be filled in directly by the organiser, or claimed and filled in
+by the subvendor themselves via an invite link — see Subvendor
+Self-Signup below.
 
 - **`booth_groups`** — `show_id`, `organiser_ref` (e.g. "Island A",
   unique per show). Editable/deletable in place, same pattern as booth
@@ -344,17 +346,71 @@ aren't linked to a real vendor account.
   and add-ons. Logo upload reuses the floorplan upload's pattern (upload
   to Storage first, then write the path) inside the same server action as
   the rest of the form fields, rather than a separate upload step.
-- **No real vendor accounts involved.** Subvendor entries are organiser-
-  entered free text, not linked to a `public.users` row — there's no
-  `Application`/vendor-assignment flow yet for a real account to hang off
-  of (same reasoning `add_ons.mandatory` isn't enforced against anything
-  yet). Not `BoothGroupMembership`/primary-vs-sub vendor roles either.
+- **Not `BoothGroupMembership`.** No primary-vs-sub vendor roles, no
+  island-wide payment — each subvendor entry stands alone. `passes_note`
+  stays organiser-entered free text (e.g. "2x vendor passes"), not a real
+  `PassType`/`PassAssignment` integration — that system doesn't exist yet
+  and is intentionally out of scope for this iteration.
 - **Storage**: a public-read `vendor-logos` bucket (same reasoning as
   `floorplans` — business logos aren't sensitive), objects at
   `{show_id}/{random}.{ext}`, RLS via `can_manage_show` on the first path
-  segment. Replacing a logo uploads a new file at a new path rather than
-  overwriting (same pattern as floorplan re-uploads); the old file is
-  simply orphaned rather than deleted.
+  segment (organiser uploads) or a claimed-subvendor check (self-service
+  uploads — see below). Replacing a logo uploads a new file at a new path
+  rather than overwriting (same pattern as floorplan re-uploads); the old
+  file is simply orphaned rather than deleted.
+
+## Subvendor Self-Signup
+
+`supabase/migrations/0009_subvendor_self_signup.sql` lets a subvendor
+claim their own `booth_group_subvendors` row and fill in their own
+details, rather than that roster being organiser-entered only. This is
+the first real instance of the "vendor role gets granted as part of a
+flow, not at signup" behaviour `CLAUDE.md`'s Auth section describes —
+claiming an invite self-grants the `vendor` role and a blank
+`vendor_profiles` row, through the exact same self-serve RLS policy from
+`0002_users_roles_and_vendor_profiles.sql` (`granted_by is null`), not a
+new one.
+
+- **`booth_group_subvendors.user_id`** (nullable FK to `public.users`,
+  added by this migration) — null until claimed. No uniqueness
+  constraint on it: the same person can be a subvendor at more than one
+  island/show over time.
+- **Invite link**: `/subvendor-invite/[subvendorId]` — a standalone route
+  outside `/dashboard`, since the visitor isn't (yet, or ever) organiser
+  staff. Each unclaimed row on the Islands tab (`subvendor-list.tsx`)
+  shows this link as copyable text; once claimed it shows a "Claimed"
+  badge instead. There's no email-sending, so getting the link to the
+  actual subvendor is manual (copy/paste into an email, WhatsApp, etc.)
+  — consistent with the rest of the app's Day-1-manual style.
+- **Claim flow** (`src/lib/actions/subvendor-claims.ts`,
+  `src/components/subvendor-invite-claim.tsx`): the invite page always
+  shows a lightweight preview (business name, island/booth ref) via the
+  `get_subvendor_invite_preview` RPC, then branches on session state —
+  not logged in → links to `/signup`/`/login` (no redirect-back
+  plumbing; the visitor re-opens the invite link after auth, a deliberate
+  simplification); logged in and unclaimed → a "Claim this listing"
+  button; logged in and already claimed by someone else → a dead-end
+  message; logged in and it's *their* claimed row → a self-edit form
+  (business name, contact info, notes, logo — never `booth_id`,
+  `booth_group_id`, or `passes_note`, which stay organiser-only).
+- **Why security-definer RPC functions instead of RLS policies**: a
+  plain `for update using (user_id is null)` policy would let any
+  authenticated visitor claim *and* rewrite organiser-controlled columns
+  on *any* unclaimed row in the same statement, since RLS is row-level,
+  not column-level. `claim_booth_group_subvendor(target_id)` and
+  `update_own_booth_group_subvendor(target_id, ...)` hard-code exactly
+  which columns each action can touch (same `security definer` pattern as
+  `is_platform_admin()`/`can_manage_show()`). Similarly,
+  `get_subvendor_invite_preview(target_id)` only ever returns the one row
+  matching the exact id passed in and only non-sensitive display fields —
+  safe to expose broadly (a visitor who hasn't claimed a row can't
+  otherwise `SELECT` it) without becoming a way to browse every unclaimed
+  subvendor row platform-wide.
+- **Organiser access is unchanged.** `can_manage_show`-gated RLS still
+  lets organiser staff read/write every subvendor row for their shows
+  (0008), claimed or not — the new `user_id = auth.uid()` policy and the
+  RPC functions are strictly additive, a second access path for the
+  subvendor themselves.
 
 ## Notes
 
@@ -409,12 +465,21 @@ aren't linked to a real vendor account.
   `organiser_staff` create named islands, assign existing island-category
   booths into them, and record each island's subvendors (business name,
   logo, contact info, notes, a free-text passes note) — a reference
-  roster, not a booking mechanic. Not wired into pricing, applications,
-  or any real vendor account. Not yet done: `island_layout_template`
-  (auto-generating sub-slots), `BoothGroupMembership`/primary-vs-sub
-  vendor roles, a real `PassType`/`PassAssignment` system, and linking
-  subvendor entries to actual vendor accounts once an Application flow
-  exists.
+  roster, not a booking mechanic. Not wired into pricing or applications.
+  Not yet done: `island_layout_template` (auto-generating sub-slots),
+  `BoothGroupMembership`/primary-vs-sub vendor roles, and a real
+  `PassType`/`PassAssignment` system (`passes_note` stays free text until
+  that's built).
+- **Subvendor self-signup** — done. See Subvendor Self-Signup above: a
+  subvendor can claim their own roster entry via an invite link
+  (`/subvendor-invite/[subvendorId]`) and fill in their own business
+  details, contact info, and logo, rather than that entry being
+  organiser-entered only. Claiming self-grants the `vendor` role and a
+  blank `vendor_profiles` row — the first real use of the self-serve role
+  grant described in Auth above. Not yet done: redirect-back-to-invite
+  after signup/login (the visitor re-opens the link manually today), and
+  email delivery of the invite link itself (organiser copies/shares it
+  manually).
 
 ## Before Launch
 

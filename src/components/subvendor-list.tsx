@@ -17,6 +17,7 @@ type Subvendor = {
   notes: string | null;
   passes_note: string | null;
   logo_url: string | null;
+  user_id: string | null;
 };
 
 const initialState: SubvendorFormState = { error: null };
@@ -132,7 +133,7 @@ function EditSubvendorForm({
 
       <div className="flex flex-col gap-1">
         <label htmlFor={`logo-${subvendor.id}`} className="text-sm font-medium">
-          Logo{subvendor.logo_url ? " (choose a file to replace)" : ""}
+          {`Logo${subvendor.logo_url ? " (choose a file to replace)" : ""}`}
         </label>
         <input
           id={`logo-${subvendor.id}`}
@@ -306,6 +307,18 @@ export function SubvendorList({
                         {subvendor.notes}
                       </span>
                     ) : null}
+                    {subvendor.user_id ? (
+                      <span className="text-sm text-emerald-700 dark:text-emerald-400">
+                        Claimed
+                      </span>
+                    ) : (
+                      <a
+                        href={`/subvendor-invite/${subvendor.id}`}
+                        className="text-sm text-zinc-500 underline dark:text-zinc-400"
+                      >
+                        {`Invite link: /subvendor-invite/${subvendor.id}`}
+                      </a>
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">

@@ -42,6 +42,12 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
      `booth_group_subvendors` tables with RLS, a `booths.booth_group_id`
      column, and a public `vendor-logos` Storage bucket. Used by
      `/dashboard/shows/[showId]/islands`.
+   - `0009_subvendor_self_signup.sql` — adds `booth_group_subvendors.user_id`,
+     an RLS policy so a claimed subvendor can see their own row, and three
+     `security definer` functions (`get_subvendor_invite_preview`,
+     `claim_booth_group_subvendor`, `update_own_booth_group_subvendor`)
+     plus a Storage policy for self-service logo uploads. Used by
+     `/subvendor-invite/[subvendorId]`.
 
 ### Dev server
 

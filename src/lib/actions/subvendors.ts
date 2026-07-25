@@ -43,7 +43,7 @@ function parseSubvendorInput(formData: FormData): ParsedSubvendor {
   };
 }
 
-async function uploadLogoIfProvided(
+export async function uploadLogoIfProvided(
   supabase: Awaited<ReturnType<typeof createClient>>,
   showId: string,
   formData: FormData,

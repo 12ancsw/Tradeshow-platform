@@ -26,7 +26,7 @@ export default async function IslandsPage({
       supabase
         .from("booth_group_subvendors")
         .select(
-          "id, booth_group_id, booth_id, business_name, contact_email, contact_phone, notes, passes_note, logo_path",
+          "id, booth_group_id, booth_id, business_name, contact_email, contact_phone, notes, passes_note, logo_path, user_id",
         )
         .eq("show_id", showId)
         .order("created_at", { ascending: true }),

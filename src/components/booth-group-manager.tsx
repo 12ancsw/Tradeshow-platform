@@ -22,6 +22,7 @@ type Subvendor = {
   notes: string | null;
   passes_note: string | null;
   logo_url: string | null;
+  user_id: string | null;
 };
 
 const initialState: BoothGroupFormState = { error: null };
