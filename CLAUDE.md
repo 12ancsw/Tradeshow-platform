@@ -249,6 +249,11 @@ inventory. All four live on a new per-show page,
   level or scroll position. Tap-to-place always goes through an explicit
   "Place [booth] here? Confirm/Cancel" step rather than saving on tap,
   plus four nudge buttons (±0.5%) for fine adjustment before confirming.
+  Pins are small (fixed-height, `overflow-hidden`, centered content) and
+  currently always show the booth ref as text — that same container is
+  what a vendor's logo will render into instead, once booths can be
+  assigned to a vendor (no `Application`/vendor-assignment relationship
+  exists yet, so there's no logo data source to wire up today).
 - **Deliberate simplifications** vs. the architecture doc's fuller model
   (§2): no islands (`BoothGroup`/`parent_group_id`/`island_layout_template`
   — a booth type of category `island` doesn't auto-generate sub-slots, you

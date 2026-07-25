@@ -15,6 +15,14 @@ const ZOOM_STEP = 0.5;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
 
+// Shared shape/sizing for every pin on the floorplan: small, centered,
+// clipped. Currently always shows the booth ref as text, but the same
+// container (fixed height, overflow-hidden, centered content) is what a
+// vendor's logo would later render into in place of that text, once
+// booths can be assigned to vendors -- no layout changes needed then.
+const PIN_BASE_CLASS =
+  "absolute flex h-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full px-1.5 text-[9px] font-semibold leading-none shadow";
+
 function clamp(value: number) {
   return Math.min(100, Math.max(0, value));
 }
@@ -169,7 +177,7 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
                 type="button"
                 onClick={(event) => handlePinClick(booth, event)}
                 style={{ left: `${booth.map_x}%`, top: `${booth.map_y}%` }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-black px-2 py-1 text-xs font-medium text-white shadow dark:bg-white dark:text-black"
+                className={`${PIN_BASE_CLASS} bg-black text-white dark:bg-white dark:text-black`}
               >
                 {booth.organiser_ref}
               </button>
@@ -178,7 +186,7 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
           {pendingPosition ? (
             <span
               style={{ left: `${pendingPosition.x}%`, top: `${pendingPosition.y}%` }}
-              className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-600 px-2 py-1 text-xs font-medium text-white shadow"
+              className={`${PIN_BASE_CLASS} bg-red-600 text-white`}
             >
               {selectedBooth?.organiser_ref ?? "?"}
             </span>
