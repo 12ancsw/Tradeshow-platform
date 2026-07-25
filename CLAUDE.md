@@ -253,7 +253,12 @@ inventory. All four live on a new per-show page,
   currently always show the booth ref as text — that same container is
   what a vendor's logo will render into instead, once booths can be
   assigned to a vendor (no `Application`/vendor-assignment relationship
-  exists yet, so there's no logo data source to wire up today).
+  exists yet, so there's no logo data source to wire up today). Pin size
+  is per booth-type `category`: `island` pins stay full size (fewer of
+  them, sub-slots sit close together and need to stay legible/tappable);
+  `standard`/`corner` pins render at a third of that size (h-5 → ~6.67px)
+  since there are usually many more of them and they'd otherwise clutter
+  the floorplan — zoom in to place or reselect those precisely.
 - **Deliberate simplifications** vs. the architecture doc's fuller model
   (§2): no islands (`BoothGroup`/`parent_group_id`/`island_layout_template`
   — a booth type of category `island` doesn't auto-generate sub-slots, you

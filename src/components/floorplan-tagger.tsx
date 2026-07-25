@@ -6,6 +6,7 @@ import { updateBoothPosition } from "@/lib/actions/booths";
 type Booth = {
   id: string;
   organiser_ref: string;
+  category: string;
   map_x: number | null;
   map_y: number | null;
 };
@@ -15,13 +16,21 @@ const ZOOM_STEP = 0.5;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
 
-// Shared shape/sizing for every pin on the floorplan: small, centered,
-// clipped. Currently always shows the booth ref as text, but the same
-// container (fixed height, overflow-hidden, centered content) is what a
-// vendor's logo would later render into in place of that text, once
-// booths can be assigned to vendors -- no layout changes needed then.
+// Shared shape/sizing for every pin on the floorplan: centered, clipped.
+// Currently always shows the booth ref as text, but the same container
+// (overflow-hidden, centered content) is what a vendor's logo would later
+// render into in place of that text, once booths can be assigned to
+// vendors -- no layout changes needed then.
 const PIN_BASE_CLASS =
-  "absolute flex h-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full px-1.5 text-[9px] font-semibold leading-none shadow";
+  "absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full font-semibold leading-none shadow";
+
+// Islands are few and their sub-slots sit close together, so they stay at
+// full size to stay tappable/legible. Standard/corner booths are far more
+// numerous and clutter the floorplan at that size, so they're shown at a
+// third of the size -- zoom in (above) to place or reselect them precisely.
+function pinSizeClass(category: string) {
+  return category === "island" ? "h-5 px-1.5 text-[9px]" : "h-[6.67px] w-[6.67px] text-[0px]";
+}
 
 function clamp(value: number) {
   return Math.min(100, Math.max(0, value));
@@ -177,7 +186,8 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
                 type="button"
                 onClick={(event) => handlePinClick(booth, event)}
                 style={{ left: `${booth.map_x}%`, top: `${booth.map_y}%` }}
-                className={`${PIN_BASE_CLASS} bg-black text-white dark:bg-white dark:text-black`}
+                title={booth.organiser_ref}
+                className={`${PIN_BASE_CLASS} ${pinSizeClass(booth.category)} bg-black text-white dark:bg-white dark:text-black`}
               >
                 {booth.organiser_ref}
               </button>
@@ -186,7 +196,8 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
           {pendingPosition ? (
             <span
               style={{ left: `${pendingPosition.x}%`, top: `${pendingPosition.y}%` }}
-              className={`${PIN_BASE_CLASS} bg-red-600 text-white`}
+              title={selectedBooth?.organiser_ref}
+              className={`${PIN_BASE_CLASS} ${pinSizeClass(selectedBooth?.category ?? "standard")} bg-red-600 text-white`}
             >
               {selectedBooth?.organiser_ref ?? "?"}
             </span>

@@ -66,9 +66,14 @@ export default async function ShowDetailPage({
         .publicUrl
     : null;
 
+  const boothTypeCategoryById = new Map(
+    (boothTypes ?? []).map((boothType) => [boothType.id, boothType.category]),
+  );
+
   const taggerBooths = (booths ?? []).map((booth) => ({
     id: booth.id,
     organiser_ref: booth.organiser_ref,
+    category: boothTypeCategoryById.get(booth.booth_type_id) ?? "standard",
     map_x: booth.map_x === null ? null : Number(booth.map_x),
     map_y: booth.map_y === null ? null : Number(booth.map_y),
   }));
