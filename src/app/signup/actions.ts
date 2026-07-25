@@ -36,5 +36,5 @@ export async function signup(_prevState: SignupState, formData: FormData): Promi
     };
   }
 
-  redirect("/signup/role");
+  redirect("/dashboard");
 }

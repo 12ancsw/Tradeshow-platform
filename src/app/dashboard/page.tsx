@@ -10,10 +10,6 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  if (current.roles.length === 0) {
-    redirect("/signup/role");
-  }
-
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">

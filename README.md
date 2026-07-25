@@ -20,8 +20,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
      connectivity.
    - `0002_users_roles_and_vendor_profiles.sql` — `users`, `user_roles`,
      and `vendor_profiles` tables with RLS, and the trigger that creates a
-     `users` row on signup. Used by `/signup`, `/signup/role`, `/login`,
-     and `/dashboard`.
+     `users` row on signup. Used by `/signup`, `/login`, and `/dashboard`.
 
 ### Dev server
 

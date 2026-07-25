@@ -19,10 +19,12 @@ create table public.users (
 -- organiser_id is nullable and, for now, unconstrained — no organisers
 -- table exists yet, but the column is here so organiser_staff can be
 -- scoped to a specific organiser once that table is built. vendor/attendee
--- are self-serve at signup (granted_by left null); platform_admin/
--- organiser_staff are only ever granted by an existing admin/organiser —
--- that grant flow isn't built yet, but the RLS below already blocks
--- self-granting either of those roles.
+-- are self-serve (granted_by left null) whenever a user takes a
+-- vendor/attendee action — e.g. applying to a show or getting a ticket,
+-- not at account signup itself. platform_admin/organiser_staff are only
+-- ever granted by an existing admin/organiser — that grant flow isn't
+-- built yet, but the RLS below already blocks self-granting either of
+-- those roles.
 create table public.user_roles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users (id) on delete cascade,
@@ -64,12 +66,12 @@ create policy "Users can view own roles"
   on public.user_roles for select
   using (auth.uid() = user_id);
 
--- Self-serve signup can only ever grant yourself vendor or attendee, and
--- only ungranted (i.e. not impersonating an admin-issued grant).
--- platform_admin/organiser_staff require a future grant flow (server-side,
--- run as the granting admin) that this policy does not allow from the
--- client.
-create policy "Users can self-grant vendor or attendee at signup"
+-- Self-serve role grants can only ever be vendor or attendee for
+-- yourself, and only ungranted (i.e. not impersonating an admin-issued
+-- grant). platform_admin/organiser_staff require a future grant flow
+-- (server-side, run as the granting admin) that this policy does not
+-- allow from the client.
+create policy "Users can self-grant vendor or attendee"
   on public.user_roles for insert
   with check (
     auth.uid() = user_id

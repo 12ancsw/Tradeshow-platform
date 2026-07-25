@@ -35,12 +35,13 @@ architecture doc's "Persona → Module Mapping"):
    applications/bookings, verifies payments. Never self-selected — granted
    by an existing admin/organiser.
 3. **Vendor** (`vendor`) — applies for and books tables/booths at shows,
-   manages their own listing/profile (`vendor_profiles`). Self-serve at
-   signup.
+   manages their own listing/profile (`vendor_profiles`). Self-serve, but
+   *not* at account signup — see Auth below for where that role actually
+   gets granted.
 4. **Attendee** (`attendee`) — covers both VIP pass buyers and general
    attendees per the architecture doc (same `User`/ticketing
    infrastructure, differentiated by `PassType` tier once that exists).
-   Self-serve at signup ("I'm attending as a guest").
+   Self-serve, same caveat as vendor above.
 
 A single account can hold more than one role at once (e.g. `vendor` AND
 `attendee`) — see the role switcher on `/dashboard`.
@@ -73,8 +74,7 @@ assuming an automated payment webhook will flip it.
   `middleware.ts` convention to `proxy.ts` (see AGENTS.md) — don't
   reintroduce a `middleware.ts` file, it won't run.
 - `src/lib/auth.ts` — `getCurrentUserWithRoles()` helper (session user,
-  `users.name`, and every `user_roles` row), shared by `/login`,
-  `/signup`, `/signup/role`, and `/dashboard`.
+  `users.name`, and every `user_roles` row), used by `/dashboard`.
 - `supabase/migrations/` — hand-applied SQL migrations (run in the
   Supabase SQL editor, or via the Supabase CLI once one is wired up)
 
@@ -101,24 +101,31 @@ a DB trigger reading signup `user_metadata`) plus zero or more
 - RLS on all three: users can read/update only their own row(s); nothing
   is publicly readable by default.
 
-Signup is two steps:
-
-- `/signup` — email, password, name. Calls `supabase.auth.signUp`
-  (built-in Supabase signup, no hand-rolled password handling) with
-  `name` in `user_metadata`; the DB trigger creates the `users` row.
-- `/signup/role` — "I'm a vendor" or "I'm attending as a guest" (single
-  choice, big tap targets). Inserts the matching `user_roles` row and, for
-  vendor, a blank `vendor_profiles` row. Redirects to `/dashboard`.
+**Signup is account creation only — no role choice.** `/signup` collects
+email, password, name; calls `supabase.auth.signUp` (built-in Supabase
+signup, no hand-rolled password handling) with `name` in `user_metadata`;
+the DB trigger creates the `users` row; redirects straight to `/dashboard`.
+This is a deliberate divergence from the architecture doc §3 text, which
+describes picking "I'm a vendor" / "I'm attending as a guest" at signup
+time — instead, vendor/attendee `user_roles` rows get granted later, as
+part of whatever show/event flow actually needs that role (e.g. applying
+to a show grants `vendor`, getting a ticket grants `attendee`). Neither of
+those flows exists yet (no `organisers`/`shows` tables — see Tenancy model
+above), so today an account can sit at zero roles indefinitely; `/dashboard`
+handles that state (see below). The RLS policy that lets a user self-grant
+`vendor`/`attendee` (`granted_by is null`) is unchanged and still applies
+whenever that future flow inserts the row — it isn't signup-specific.
 
 `/login` — email/password. `/dashboard` — redirects to `/login` with no
-session, or to `/signup/role` if the signed-in user holds zero roles yet
-(e.g. they confirmed their email and logged in without ever finishing
-step 2). Otherwise shows "Logged in as [name], role: [role]" plus a role
-switcher (`src/app/dashboard/home-content.tsx`, a client component) when
-the account holds more than one role — active role is local component
-state only, not persisted anywhere yet (per architecture doc §3, this is
-enough for now; whichever context is "active" will eventually drive the
-bottom nav/home screen once those exist).
+session; otherwise shows "Logged in as [name]" and, once the account holds
+at least one role, ", role: [role]" plus a role switcher
+(`src/app/dashboard/home-content.tsx`, a client component) when the
+account holds more than one — active role is local component state only,
+not persisted anywhere yet (per architecture doc §3, this is enough for
+now; whichever context is "active" will eventually drive the bottom
+nav/home screen once those exist). Zero roles is a normal, expected state
+right now, not an error — it just means "hasn't applied to a show or
+gotten a ticket yet."
 
 ## Notes
 
@@ -135,15 +142,20 @@ bottom nav/home screen once those exist).
   earlier single-role `profiles` table (and the `organisers`/`shows`
   tables + `/admin`/`/organiser` consoles built on top of it) with the
   architecture doc's real shape: one `User` per person, many `UserRole`
-  rows, RLS-gated self-serve signup for `vendor`/`attendee` only. See
-  Auth above for `/signup`, `/signup/role`, `/login`, `/dashboard`.
-  Not yet done: `platform_admin`/`organiser_staff` grant flow (schema and
-  RLS already support it — see `user_roles.granted_by`/`organiser_id` —
-  just no UI yet), password reset, email verification UX beyond the
-  generic "check your email" message, `VendorFieldPolicy`/
+  rows. See Auth above for `/signup`, `/login`, `/dashboard`.
+- **Signup is role-agnostic** — done. Originally `/signup` was followed by
+  a mandatory `/signup/role` step (matching the architecture doc's literal
+  text); that step is removed. Signup now only creates the account;
+  `vendor`/`attendee` roles get granted later, inside a future show
+  application / ticket-purchase flow (not built yet). `/dashboard` handles
+  the zero-role state gracefully instead of forcing a redirect. Not yet
+  done: `platform_admin`/`organiser_staff` grant flow (schema and RLS
+  already support it — see `user_roles.granted_by`/`organiser_id` — just
+  no UI yet), the show application / ticket-purchase flow that will
+  actually grant `vendor`/`attendee`, password reset, email verification
+  UX beyond the generic "check your email" message, `VendorFieldPolicy`/
   `VendorFieldConsent`, and the entire Organiser/Show/Booth/Application
-  domain model from the architecture doc (§2) — none of that exists yet,
-  this PR is auth/roles only.
+  domain model from the architecture doc (§2) — none of that exists yet.
 
 ## Before Launch
 
