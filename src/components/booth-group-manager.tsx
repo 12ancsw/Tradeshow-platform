@@ -10,7 +10,13 @@ import {
 import { SubvendorForm } from "@/components/subvendor-form";
 import { SubvendorList } from "@/components/subvendor-list";
 
-type BoothGroup = { id: string; organiser_ref: string };
+type BoothGroup = {
+  id: string;
+  organiser_ref: string;
+  island_type_id: string | null;
+  map_x: number | null;
+};
+type IslandType = { id: string; name: string; base_price: number | string };
 type Booth = { id: string; organiser_ref: string; booth_group_id: string | null };
 type Subvendor = {
   id: string;
@@ -30,10 +36,12 @@ const initialState: BoothGroupFormState = { error: null };
 function EditBoothGroupForm({
   boothGroup,
   showId,
+  islandTypes,
   onDone,
 }: {
   boothGroup: BoothGroup;
   showId: string;
+  islandTypes: IslandType[];
   onDone: () => void;
 }) {
   const updateForGroup = updateBoothGroup.bind(null, boothGroup.id, showId);
@@ -61,6 +69,26 @@ function EditBoothGroupForm({
           defaultValue={boothGroup.organiser_ref}
           className="rounded-lg border border-zinc-300 px-4 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
         />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`island_type_id-${boothGroup.id}`} className="text-sm font-medium">
+          Island type
+        </label>
+        <select
+          id={`island_type_id-${boothGroup.id}`}
+          name="island_type_id"
+          required
+          defaultValue={boothGroup.island_type_id ?? ""}
+          className="rounded-lg border border-zinc-300 px-4 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
+        >
+          <option value="">Choose a type…</option>
+          {islandTypes.map((islandType) => (
+            <option key={islandType.id} value={islandType.id}>
+              {islandType.name} (${Number(islandType.base_price).toFixed(2)})
+            </option>
+          ))}
+        </select>
       </div>
 
       {state.error ? (
@@ -240,17 +268,20 @@ function AssignedBoothRow({ booth, showId }: { booth: Booth; showId: string }) {
 export function BoothGroupManager({
   showId,
   boothGroups,
+  islandTypes,
   islandBooths,
   subvendors,
 }: {
   showId: string;
   boothGroups: BoothGroup[];
+  islandTypes: IslandType[];
   islandBooths: Booth[];
   subvendors: Subvendor[];
 }) {
   const [mode, setMode] = useState<{ id: string; type: "edit" | "delete" } | null>(null);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
+  const islandTypeById = new Map(islandTypes.map((islandType) => [islandType.id, islandType]));
   const boothById = new Map(
     islandBooths.map((booth) => [booth.id, { id: booth.id, organiser_ref: booth.organiser_ref }]),
   );
@@ -281,6 +312,7 @@ export function BoothGroupManager({
               <EditBoothGroupForm
                 boothGroup={boothGroup}
                 showId={showId}
+                islandTypes={islandTypes}
                 onDone={() => setMode(null)}
               />
             ) : mode?.id === boothGroup.id && mode.type === "delete" ? (
@@ -295,11 +327,21 @@ export function BoothGroupManager({
                 <span className="flex flex-col">
                   <span className="font-medium">{boothGroup.organiser_ref}</span>
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                    {islandTypeById.get(boothGroup.island_type_id ?? "")?.name ?? "No type set"}
+                  </span>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">
                     {assignedBooths.length} booth{assignedBooths.length === 1 ? "" : "s"} ·{" "}
-                    {groupSubvendors.length} subvendor{groupSubvendors.length === 1 ? "" : "s"}
+                    {groupSubvendors.length} subvendor{groupSubvendors.length === 1 ? "" : "s"} ·{" "}
+                    {boothGroup.map_x === null ? "Not placed" : "Placed"}
                   </span>
                 </span>
                 <div className="flex items-center gap-3">
+                  <span className="text-sm">
+                    $
+                    {Number(
+                      islandTypeById.get(boothGroup.island_type_id ?? "")?.base_price ?? 0,
+                    ).toFixed(2)}
+                  </span>
                   <button
                     type="button"
                     onClick={() => setMode({ id: boothGroup.id, type: "edit" })}

@@ -2,11 +2,12 @@
 
 import { useState, useTransition, type MouseEvent } from "react";
 import { updateBoothPosition } from "@/lib/actions/booths";
+import { updateIslandPosition } from "@/lib/actions/booth-groups";
 
-type Booth = {
+type Pin = {
   id: string;
+  kind: "booth" | "island";
   organiser_ref: string;
-  category: string;
   map_x: number | null;
   map_y: number | null;
 };
@@ -17,53 +18,53 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
 
 // Shared shape/sizing for every pin on the floorplan: centered, clipped.
-// Currently always shows the booth ref as text, but the same container
+// Currently always shows the ref as text, but the same container
 // (overflow-hidden, centered content) is what a vendor's logo would later
-// render into in place of that text, once booths can be assigned to
-// vendors -- no layout changes needed then.
+// render into in place of that text, once booths/islands can be assigned
+// to a vendor -- no layout changes needed then.
 const PIN_BASE_CLASS =
   "absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full font-semibold leading-none shadow";
 
-// Islands are few and their sub-slots sit close together, so they stay at
-// full size to stay tappable/legible. Standard/corner booths are far more
-// numerous and clutter the floorplan at that size, so they're shown at a
-// third of the size -- zoom in (above) to place or reselect them precisely.
-function pinSizeClass(category: string) {
-  return category === "island" ? "h-5 px-1.5 text-[9px]" : "h-[6.67px] w-[6.67px] text-[0px]";
+// Islands are few and are the unit an applicant actually books, so they
+// stay at full size to stay tappable/legible. Standard/corner booths are
+// far more numerous and clutter the floorplan at that size, so they're
+// shown at a third of the size -- zoom in (above) to place or reselect
+// them precisely. Individual booths within an island no longer get their
+// own pin at all -- see the Islands tab for that roster.
+function pinSizeClass(kind: Pin["kind"]) {
+  return kind === "island" ? "h-5 px-1.5 text-[9px]" : "h-[6.67px] w-[6.67px] text-[0px]";
 }
 
 function clamp(value: number) {
   return Math.min(100, Math.max(0, value));
 }
 
-export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths: Booth[] }) {
-  const [selectedBoothId, setSelectedBoothId] = useState("");
+export function FloorplanTagger({ imageUrl, pins }: { imageUrl: string; pins: Pin[] }) {
+  const [selectedId, setSelectedId] = useState("");
   const [pendingPosition, setPendingPosition] = useState<{ x: number; y: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(MIN_ZOOM);
   const [isPending, startTransition] = useTransition();
 
-  const unplacedBooths = booths.filter((booth) => booth.map_x === null);
-  const unplacedCount = unplacedBooths.length;
-  const selectedBooth = booths.find((booth) => booth.id === selectedBoothId);
+  const unplacedPins = pins.filter((pin) => pin.map_x === null);
+  const unplacedCount = unplacedPins.length;
+  const selectedPin = pins.find((pin) => pin.id === selectedId);
 
-  function selectBooth(boothId: string) {
-    const booth = booths.find((candidate) => candidate.id === boothId);
-    setSelectedBoothId(boothId);
+  function selectPin(pinId: string) {
+    const pin = pins.find((candidate) => candidate.id === pinId);
+    setSelectedId(pinId);
     setError(null);
     setPendingPosition(
-      booth && booth.map_x !== null && booth.map_y !== null
-        ? { x: booth.map_x, y: booth.map_y }
-        : null,
+      pin && pin.map_x !== null && pin.map_y !== null ? { x: pin.map_x, y: pin.map_y } : null,
     );
   }
 
   // Coordinates are computed against this element's own bounding rect (not
   // the scrollable outer container's), so they stay correct however far
-  // it's zoomed in or scrolled -- important for placing several booths
-  // close together within an island's footprint.
+  // it's zoomed in or scrolled -- important for placing several pins
+  // close together.
   function handleImageClick(event: MouseEvent<HTMLDivElement>) {
-    if (!selectedBoothId) return;
+    if (!selectedId) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 100;
     const y = ((event.clientY - rect.top) / rect.height) * 100;
@@ -71,9 +72,9 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
     setError(null);
   }
 
-  function handlePinClick(booth: Booth, event: MouseEvent) {
+  function handlePinClick(pin: Pin, event: MouseEvent) {
     event.stopPropagation();
-    selectBooth(booth.id);
+    selectPin(pin.id);
   }
 
   function nudge(dx: number, dy: number) {
@@ -89,20 +90,23 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
   }
 
   function confirmPlacement() {
-    if (!selectedBoothId || !pendingPosition) return;
+    if (!selectedId || !pendingPosition || !selectedPin) return;
     startTransition(async () => {
-      const result = await updateBoothPosition(selectedBoothId, pendingPosition.x, pendingPosition.y);
+      const result =
+        selectedPin.kind === "island"
+          ? await updateIslandPosition(selectedId, pendingPosition.x, pendingPosition.y)
+          : await updateBoothPosition(selectedId, pendingPosition.x, pendingPosition.y);
       if (result.error) {
         setError(result.error);
         return;
       }
-      setSelectedBoothId("");
+      setSelectedId("");
       setPendingPosition(null);
     });
   }
 
   function cancel() {
-    setSelectedBoothId("");
+    setSelectedId("");
     setPendingPosition(null);
     setError(null);
   }
@@ -110,34 +114,34 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <label htmlFor="booth-picker" className="text-sm font-medium">
-          Select a booth to place
+        <label htmlFor="pin-picker" className="text-sm font-medium">
+          Select a booth or island to place
         </label>
         <select
-          id="booth-picker"
-          value={selectedBoothId}
-          onChange={(event) => selectBooth(event.target.value)}
+          id="pin-picker"
+          value={selectedId}
+          onChange={(event) => selectPin(event.target.value)}
           className="rounded-lg border border-zinc-300 px-4 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
         >
-          <option value="">Choose a booth…</option>
-          {unplacedBooths.map((booth) => (
-            <option key={booth.id} value={booth.id}>
-              {booth.organiser_ref}
+          <option value="">Choose…</option>
+          {unplacedPins.map((pin) => (
+            <option key={pin.id} value={pin.id}>
+              {`${pin.kind === "island" ? "Island: " : ""}${pin.organiser_ref}`}
             </option>
           ))}
-          {selectedBooth && selectedBooth.map_x !== null ? (
-            <option key={selectedBooth.id} value={selectedBooth.id}>
-              {selectedBooth.organiser_ref} (placed — tap a pin to reposition)
+          {selectedPin && selectedPin.map_x !== null ? (
+            <option key={selectedPin.id} value={selectedPin.id}>
+              {`${selectedPin.kind === "island" ? "Island: " : ""}${selectedPin.organiser_ref} (placed — tap a pin to reposition)`}
             </option>
           ) : null}
         </select>
         {unplacedCount > 0 ? (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {`${unplacedCount} booth${unplacedCount === 1 ? "" : "s"} not yet placed.`}
+            {`${unplacedCount} not yet placed.`}
           </p>
         ) : (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            All booths placed — tap a pin on the floorplan to reposition it.
+            All placed — tap a pin on the floorplan to reposition it.
           </p>
         )}
       </div>
@@ -146,7 +150,7 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
         <span className="text-sm text-zinc-500 dark:text-zinc-400">
           Zoom: {Math.round(zoom * 100)}%{" "}
           <span className="text-zinc-400 dark:text-zinc-500">
-            — zoom in to place booths precisely within an island
+            — zoom in to place booths precisely
           </span>
         </span>
         <div className="flex gap-2">
@@ -185,39 +189,37 @@ export function FloorplanTagger({ imageUrl, booths }: { imageUrl: string; booths
             draggable={false}
           />
 
-          {booths
-            .filter(
-              (booth) => booth.map_x !== null && booth.map_y !== null && booth.id !== selectedBoothId,
-            )
-            .map((booth) => (
+          {pins
+            .filter((pin) => pin.map_x !== null && pin.map_y !== null && pin.id !== selectedId)
+            .map((pin) => (
               <button
-                key={booth.id}
+                key={pin.id}
                 type="button"
-                onClick={(event) => handlePinClick(booth, event)}
-                style={{ left: `${booth.map_x}%`, top: `${booth.map_y}%` }}
-                title={booth.organiser_ref}
-                className={`${PIN_BASE_CLASS} ${pinSizeClass(booth.category)} bg-black text-white dark:bg-white dark:text-black`}
+                onClick={(event) => handlePinClick(pin, event)}
+                style={{ left: `${pin.map_x}%`, top: `${pin.map_y}%` }}
+                title={pin.organiser_ref}
+                className={`${PIN_BASE_CLASS} ${pinSizeClass(pin.kind)} bg-black text-white dark:bg-white dark:text-black`}
               >
-                {booth.organiser_ref}
+                {pin.organiser_ref}
               </button>
             ))}
 
           {pendingPosition ? (
             <span
               style={{ left: `${pendingPosition.x}%`, top: `${pendingPosition.y}%` }}
-              title={selectedBooth?.organiser_ref}
-              className={`${PIN_BASE_CLASS} ${pinSizeClass(selectedBooth?.category ?? "standard")} bg-red-600 text-white`}
+              title={selectedPin?.organiser_ref}
+              className={`${PIN_BASE_CLASS} ${pinSizeClass(selectedPin?.kind ?? "booth")} bg-red-600 text-white`}
             >
-              {selectedBooth?.organiser_ref ?? "?"}
+              {selectedPin?.organiser_ref ?? "?"}
             </span>
           ) : null}
         </div>
       </div>
 
-      {selectedBoothId && pendingPosition ? (
+      {selectedId && pendingPosition ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-zinc-300 p-3 dark:border-zinc-700">
           <p className="text-sm">
-            Place <span className="font-medium">{selectedBooth?.organiser_ref}</span> here?
+            Place <span className="font-medium">{selectedPin?.organiser_ref}</span> here?
           </p>
 
           <div className="flex flex-col items-center gap-1">

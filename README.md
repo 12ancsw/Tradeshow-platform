@@ -48,6 +48,13 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
      `claim_booth_group_subvendor`, `update_own_booth_group_subvendor`)
      plus a Storage policy for self-service logo uploads. Used by
      `/subvendor-invite/[subvendorId]`.
+   - `0010_island_types_and_floorplan.sql` — `island_types` table with RLS
+     (name, cost) and `booth_groups.island_type_id`/`map_x`/`map_y`, so an
+     island can be typed, priced, and placed on the floorplan as its own
+     pin. Used by `/dashboard/shows/[showId]/islands` and `.../floorplan`.
+   - `0011_booth_type_cascade_deletion.sql` — changes `booths.booth_type_id`
+     from blocking deletion to `on delete cascade`, so deleting a booth
+     type also deletes the booths using it instead of failing.
 
 ### Dev server
 
