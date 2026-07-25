@@ -26,6 +26,35 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
      scoped to their own organiser), plus RLS letting `platform_admin`
      look up any user by email. Used by `/dashboard` (Organisers/Shows
      sections) and `/dashboard/organisers/[organiserId]`.
+   - `0004_booth_types_booths_and_floorplans.sql` — `booth_types`,
+     `booths`, and `floorplan_versions` tables with RLS, plus a public
+     `floorplans` Storage bucket (created via this migration) with an
+     RLS-gated upload policy. Used by `/dashboard/shows/[showId]/*`.
+   - `0005_booth_type_updates.sql` — adds the `booth_types` update policy
+     `0004` was missing, so booth types can be edited after creation.
+   - `0006_remove_booth_type_selection_fee.sql` — drops
+     `booth_types.selection_fee`; a selection fee belongs to a future
+     `ReleasePhase` instead, not the booth type itself.
+   - `0007_add_ons_and_booth_type_deletion.sql` — `add_ons` table with
+     RLS (show-level, optionally `mandatory`), plus a `booth_types` delete
+     policy so organisers can remove booth types.
+   - `0008_booth_groups_and_subvendors.sql` — `booth_groups` (islands) and
+     `booth_group_subvendors` tables with RLS, a `booths.booth_group_id`
+     column, and a public `vendor-logos` Storage bucket. Used by
+     `/dashboard/shows/[showId]/islands`.
+   - `0009_subvendor_self_signup.sql` — adds `booth_group_subvendors.user_id`,
+     an RLS policy so a claimed subvendor can see their own row, and three
+     `security definer` functions (`get_subvendor_invite_preview`,
+     `claim_booth_group_subvendor`, `update_own_booth_group_subvendor`)
+     plus a Storage policy for self-service logo uploads. Used by
+     `/subvendor-invite/[subvendorId]`.
+   - `0010_island_types_and_floorplan.sql` — `island_types` table with RLS
+     (name, cost) and `booth_groups.island_type_id`/`map_x`/`map_y`, so an
+     island can be typed, priced, and placed on the floorplan as its own
+     pin. Used by `/dashboard/shows/[showId]/islands` and `.../floorplan`.
+   - `0011_booth_type_cascade_deletion.sql` — changes `booths.booth_type_id`
+     from blocking deletion to `on delete cascade`, so deleting a booth
+     type also deletes the booths using it instead of failing.
 
 ### Dev server
 

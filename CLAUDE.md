@@ -79,11 +79,26 @@ assuming an automated payment webhook will flip it.
   `users.name`, and every `user_roles` row), used by `/dashboard`.
 - `src/lib/actions/` — Server Actions shared across routes:
   `organisers.ts` (`createOrganiser`, `assignOrganiserStaff`), `shows.ts`
-  (`createShow`).
+  (`createShow`), `booth-types.ts` (`createBoothType`, `updateBoothType`,
+  `deleteBoothType`), `booths.ts` (`createBooth`, `updateBooth`,
+  `updateBoothPosition`), `add-ons.ts` (`createAddOn`, `updateAddOn`,
+  `deleteAddOn`), `floorplans.ts` (`uploadFloorplan`), `island-types.ts`
+  (`createIslandType`, `updateIslandType`, `deleteIslandType`),
+  `booth-groups.ts` (`createBoothGroup`, `updateBoothGroup`,
+  `deleteBoothGroup`, `updateIslandPosition`, `setBoothGroup`),
+  `subvendors.ts` (`createSubvendor`, `updateSubvendor`,
+  `deleteSubvendor`), `subvendor-claims.ts` (`claimSubvendor`,
+  `updateOwnSubvendor`).
 - `src/components/` — shared UI: `status-badge.tsx`, `organiser-list.tsx`,
   `organiser-form.tsx`, `assign-staff-form.tsx`, `show-list.tsx`,
-  `show-form.tsx` — used by both `/dashboard` (as `platform_admin` or
-  `organiser_staff`) and `/dashboard/organisers/[organiserId]`.
+  `show-form.tsx`, `booth-type-list.tsx`, `booth-type-form.tsx`,
+  `booth-list.tsx`, `booth-form.tsx`, `add-on-list.tsx`, `add-on-form.tsx`,
+  `floorplan-upload-form.tsx`, `floorplan-tagger.tsx`, `show-tabs.tsx`,
+  `island-type-list.tsx`, `island-type-form.tsx`, `booth-group-manager.tsx`,
+  `booth-group-form.tsx`, `subvendor-list.tsx`, `subvendor-form.tsx`,
+  `subvendor-invite-claim.tsx` — used across `/dashboard`,
+  `/dashboard/organisers/[organiserId]`, `/dashboard/shows/[showId]/*`,
+  and `/subvendor-invite/[subvendorId]`.
 - `supabase/migrations/` — hand-applied SQL migrations (run in the
   Supabase SQL editor, or via the Supabase CLI once one is wired up)
 
@@ -148,7 +163,8 @@ above) picks which console's content renders, per the architecture doc's
 - **`shows`** — `organiser_id`, `name`, `start_date`/`end_date` (`end_date
   >= start_date` enforced by a check constraint), `venue_name`,
   `payment_instructions` (free text), `active_floorplan_version_id`
-  (nullable, unconstrained — no `floorplan_versions` table exists yet).
+  (nullable, FK added in `0004_booth_types_booths_and_floorplans.sql` once
+  `floorplan_versions` existed to reference).
 - **RLS**: `public.is_platform_admin()` and `public.is_organiser_staff_for(organiser_id)`
   are `security definer` helper functions (avoid recursive RLS lookups
   against `user_roles`, same pattern as the removed `is_platform_admin()`
@@ -179,6 +195,261 @@ above) picks which console's content renders, per the architecture doc's
   shows each one's shows separately) — list of shows plus a "Create Show"
   form. No organiser-detail editing or staff-assignment here; that's
   admin-only.
+
+## Booth Types, Booths, Add-ons, and Floorplans
+
+`public.booth_types`, `public.booths`, `public.add_ons`, and
+`public.floorplan_versions` (`supabase/migrations/0004_booth_types_booths_and_floorplans.sql`
+onward) let `platform_admin`/`organiser_staff` set up a show's booth
+inventory. They live across four separate per-show tab screens rather
+than one long page — `/dashboard/shows/[showId]/booth-types` (booth types
++ add-ons together, since add-ons are the other thing an organiser
+configures once per show before opening bookings), `/dashboard/shows/[showId]/booths`,
+`/dashboard/shows/[showId]/floorplan`, and `/dashboard/shows/[showId]/islands`
+(see Booth Groups (Islands) and Subvendors below) — sharing a layout
+(`src/app/dashboard/shows/[showId]/layout.tsx`) that fetches the show
+once, renders the show name/dates header, and renders `ShowTabs`
+(`src/components/show-tabs.tsx`, a client component using `usePathname()`
+to highlight the active tab) as a horizontal scrollable tab strip — a
+mobile-friendly "menu" rather than a sidebar, matching the rest of the
+app's no-desktop-chrome constraint. `/dashboard/shows/[showId]` itself is
+now just a redirect to the `booth-types` tab, so every existing link into
+the show detail page (`ShowList`, etc.) keeps working unchanged. Each tab
+is its own Server Component fetching only the data it renders; because
+some data feeds more than one tab (a booth's `booth_type_id` drives both
+its label on the Booths tab and its pin category on the Floorplan tab), the
+relevant Server Actions (`src/lib/actions/booth-types.ts`, `booths.ts`)
+call `revalidatePath` for every tab whose data they can affect, not just
+the tab the mutating form lives on.
+
+- **`booth_types`** — `show_id`, `name`, `category` (`island` | `standard`
+  | `corner`), `base_price`. Editable and deletable in place (tap "Edit"
+  or "Delete" on a booth type's list row — `0005_booth_type_updates.sql`
+  added the update policy `0004` was missing, `0007_add_ons_and_booth_type_deletion.sql`
+  added delete). Deleting a booth type deletes the booths that used it —
+  `0011_booth_type_cascade_deletion.sql` changed `booths.booth_type_id`
+  from blocking (the original `0007` behaviour) to `on delete cascade`,
+  since organisers restructuring a show's booth types (e.g. removing an
+  old `island`-category type now that islands are placed/priced as their
+  own entity — see Booth Groups below) need to actually delete it, not be
+  stuck behind its booths. The delete confirmation shows the affected
+  booth count before it happens (`booth-type-list.tsx`, counted via a
+  lightweight `booths` query on the Booth Types tab's page). No
+  `selection_fee` field: per
+  the architecture doc, that belongs to a future `ReleasePhase` (only
+  charged under `allocation_mode = immediate_selection`, set by the
+  organiser when they release booths into that phase), not the booth type
+  itself — `0006_remove_booth_type_selection_fee.sql` removed an earlier,
+  incorrect `selection_fee` column here.
+- **`add_ons`** — `show_id`, `name`, `price`, `mandatory` (boolean).
+  Show-level per the architecture doc (`Show` → `AddOn` 1:many), not
+  booth-type-scoped. `mandatory` marks an add-on the organiser requires on
+  every application for the show, rather than one a vendor opts into —
+  there's no `Application` flow yet to actually enforce that against, so
+  today `mandatory` is just data a future application flow will read.
+  Full CRUD (create/edit/delete), same inline patterns as booth types.
+- **`booths`** — `show_id`, `booth_type_id`, `organiser_ref` (the
+  organiser-defined unique identifier, e.g. "A1" — unique per show),
+  `status` (defaults `available`, matches the architecture doc's enum; no
+  booking flow transitions it automatically, but it's editable in place —
+  e.g. to manually `block` a booth behind a pillar), `map_x`/`map_y`
+  (nullable percentage coordinates, set by the floorplan tagger below).
+  Booth type and `organiser_ref` are also editable in place, same
+  tap-"Edit" pattern as booth types. The Booths tab (`booth-list.tsx`)
+  renders booths as a grid of cards rather than a stacked list, and groups
+  them by `booth_type_id`: standard/corner booths each get their own card
+  directly in the grid, while every booth sharing an `island`-category
+  booth type collapses behind a single expandable "Island" card showing a
+  booth count, which expands to reveal those booths as their own cards
+  underneath (indented with a left border). This is a UI grouping only —
+  there's no real parent/child relationship in the data (no `BoothGroup`,
+  see Deliberate simplifications below), so "sub booths within an island"
+  today just means "booths whose booth type happens to be category
+  `island`." Tapping a card to edit it expands that card to the grid's
+  full width (`col-span-full`) so the edit form isn't squeezed into a
+  grid cell.
+- **`floorplan_versions`** — `show_id`, `image_path` (a path inside the
+  `floorplans` Storage bucket, not a full URL), `uploaded_by`,
+  `uploaded_at`. Every upload inserts a new row and repoints
+  `shows.active_floorplan_version_id` at it — "latest upload wins," no
+  draft/active/archived reconciliation workflow (architecture doc §5) yet.
+- **Storage**: a public-read `floorplans` bucket (venue map images aren't
+  sensitive, so the public URL works directly — no signed URLs). Objects
+  are stored at `{show_id}/{random}.{ext}`; a `storage.objects` INSERT
+  policy checks `(storage.foldername(name))[1]` against the same
+  can-manage-this-show rule as everything else.
+- **RLS**: a new `public.can_manage_show(show_id)` helper (same
+  `security definer` pattern as `is_platform_admin()`/
+  `is_organiser_staff_for()`) — `platform_admin` or `organiser_staff` for
+  that show's organiser can read/write. Reused for the storage policy too.
+- **Floorplan tagging** (`src/components/floorplan-tagger.tsx`): explicit
+  zoom in/out buttons (100–400%, since precisely placing several pins
+  close together needs more control than native pinch-zoom alone gives),
+  plus native pan via a scrollable container. Pins and click-to-place
+  coordinates are computed against the zoomable inner surface's own
+  bounding rect, not the scrollable outer container's, so placement stays
+  accurate at any zoom level or scroll position. Tap-to-place always goes
+  through an explicit "Place [ref] here? Confirm/Cancel" step rather than
+  saving on tap, plus four nudge buttons (±0.5%) for fine adjustment
+  before confirming. Pins are small (fixed-height, `overflow-hidden`,
+  centered content) and currently always show the ref as text — that same
+  container is what a vendor's logo will render into instead, once
+  booths/islands can be assigned to a vendor (no `Application`/vendor-
+  assignment relationship exists yet, so there's no logo data source to
+  wire up today). The tagger takes a single unified `pins` prop (each
+  tagged `kind: "booth" | "island"`) rather than a booths-only list: the
+  Floorplan tab's page builds it from standard/corner booths *and*
+  `booth_groups` (islands) together, and `confirmPlacement` dispatches to
+  `updateBoothPosition` or `updateIslandPosition` based on `kind`. Islands
+  stay at full pin size (few of them, need to stay legible/tappable);
+  booths render at a third of that size (h-5 → ~6.67px) since there are
+  usually many more of them and they'd otherwise clutter the floorplan —
+  zoom in to place or reselect those precisely. The picker dropdown only
+  lists unplaced pins, so it shrinks as tagging progresses instead of
+  staying a full, ever-growing roster; repositioning an already-placed pin
+  is done by tapping it directly on the floorplan, not through the
+  dropdown. **Individual booths within an island no longer get their own
+  floorplan pin** — per feedback ("island applicants will pay for
+  island"), the island itself is the unit placed and priced (see Booth
+  Groups below); its sub-slot booths still exist for the subvendor roster
+  (`booth_group_subvendors.booth_id`), they just aren't independently
+  tagged on the public-facing floorplan anymore.
+- **Deliberate simplifications** vs. the architecture doc's fuller model
+  (§2): no `island_layout_template` (a booth type of category `island`
+  doesn't auto-generate sub-slots, you create booths one at a time same as
+  any other category, then assign existing booths into a `booth_groups`
+  row separately — see Booth Groups below for how much of the real
+  `BoothGroup` model that does and doesn't cover), no release phases, no
+  floorplan draft/publish reconciliation. All future work.
+
+## Booth Groups (Islands) and Subvendors
+
+`public.island_types`, `public.booth_groups`, and
+`public.booth_group_subvendors` (`supabase/migrations/0008_booth_groups_and_subvendors.sql`,
+`0010_island_types_and_floorplan.sql`) are a deliberately narrow slice of
+the architecture doc's `BoothGroup` model (§2), surfaced on the
+`/dashboard/shows/[showId]/islands` tab. What it's *for*: an island is
+its own bookable unit — an "island applicant" pays for the whole island,
+not its individual booths — so it needs a type/price and a floorplan
+placement of its own, the same relationship a `booth_type` has to a
+`booth`. The tab has two sections: **Island Types**
+(`island-type-list.tsx`/`island-type-form.tsx`, full CRUD) manage the
+price/category an island is booked at; **Islands**
+(`booth-group-manager.tsx`) manage individual islands — their type,
+their subvendor roster, and which booths belong to them. There's still
+no `Application`/`PaymentRecord` flow to actually charge an applicant —
+the price exists to "facilitate booking" once that flow is built, it
+isn't charged today.
+
+- **`island_types`** — `show_id`, `name`, `base_price`. No `category`
+  field like `booth_types` has — an island type's *name* is the
+  differentiator (e.g. "Premium Island" vs "Standard Island"), there's no
+  fixed island/standard/corner-style enum to key behaviour off. Deleting
+  an island type in use is blocked (no `on delete cascade` on
+  `booth_groups.island_type_id`) with a friendly message — unlike booth
+  types (see above), there's no explicit ask yet to cascade this one.
+- **`booth_groups`** — `show_id`, `organiser_ref` (e.g. "Island A",
+  unique per show), `island_type_id` (nullable FK — nullable only so
+  islands created before this migration don't break; the create/edit
+  forms require choosing one), `map_x`/`map_y` (nullable percentage
+  coordinates, the island's own floorplan pin — see Floorplan tagging
+  above). Editable/deletable in place, same pattern as booth types.
+  Deleting a group cascades its subvendor roster
+  (`booth_group_subvendors.booth_group_id on delete cascade`) but only
+  unassigns its booths (`booths.booth_group_id on delete set null`) —
+  real booth inventory is never deleted as a side effect, same reasoning
+  as booth type deletion not cascading onto booths *used* to be (see
+  above — that specific case now does cascade, islands deleting their
+  booths doesn't).
+- **`booths.booth_group_id`** (nullable FK, added by `0008`) — which
+  island a booth belongs to, assigned as a separate step from booth
+  creation on the Islands tab (`setBoothGroup` in
+  `src/lib/actions/booth-groups.ts`, called directly from a client
+  component like `updateBoothPosition`/`updateIslandPosition` rather than
+  through a `<form>`). Only booths whose booth type is category `island`
+  are offered for assignment; this isn't a DB-level constraint (no CHECK
+  can reach across to `booth_types`), just what the UI offers. These
+  sub-slot booths are a roster/subvendor-assignment concept only now —
+  they don't get their own floorplan pin (see Floorplan tagging above).
+- **`booth_group_subvendors`** — `show_id` (denormalized, same pattern as
+  `booths.show_id`), `booth_group_id`, `booth_id` (nullable FK, which
+  specific sub-slot this subvendor occupies — a partial unique index
+  enforces at most one subvendor per booth), `business_name` (required),
+  `contact_email`, `contact_phone`, `logo_path`, `notes`, `passes_note`
+  (free text, e.g. "2x vendor passes" — not a real `PassType`/
+  `PassAssignment` integration, since neither exists yet). Full CRUD
+  (`src/lib/actions/subvendors.ts`, `src/components/subvendor-form.tsx`/
+  `subvendor-list.tsx`), same inline edit/delete pattern as booth types
+  and add-ons. Logo upload reuses the floorplan upload's pattern (upload
+  to Storage first, then write the path) inside the same server action as
+  the rest of the form fields, rather than a separate upload step.
+- **Not `BoothGroupMembership`.** No primary-vs-sub vendor roles, no
+  island-wide payment (yet — an island type's `base_price` is a step
+  toward it, not the whole thing) — each subvendor entry stands alone.
+  `passes_note` stays organiser-entered free text (e.g. "2x vendor
+  passes"), not a real `PassType`/`PassAssignment` integration — that
+  system doesn't exist yet and is intentionally out of scope for this
+  iteration.
+- **Storage**: a public-read `vendor-logos` bucket (same reasoning as
+  `floorplans` — business logos aren't sensitive), objects at
+  `{show_id}/{random}.{ext}`, RLS via `can_manage_show` on the first path
+  segment (organiser uploads) or a claimed-subvendor check (self-service
+  uploads — see below). Replacing a logo uploads a new file at a new path
+  rather than overwriting (same pattern as floorplan re-uploads); the old
+  file is simply orphaned rather than deleted.
+
+## Subvendor Self-Signup
+
+`supabase/migrations/0009_subvendor_self_signup.sql` lets a subvendor
+claim their own `booth_group_subvendors` row and fill in their own
+details, rather than that roster being organiser-entered only. This is
+the first real instance of the "vendor role gets granted as part of a
+flow, not at signup" behaviour `CLAUDE.md`'s Auth section describes —
+claiming an invite self-grants the `vendor` role and a blank
+`vendor_profiles` row, through the exact same self-serve RLS policy from
+`0002_users_roles_and_vendor_profiles.sql` (`granted_by is null`), not a
+new one.
+
+- **`booth_group_subvendors.user_id`** (nullable FK to `public.users`,
+  added by this migration) — null until claimed. No uniqueness
+  constraint on it: the same person can be a subvendor at more than one
+  island/show over time.
+- **Invite link**: `/subvendor-invite/[subvendorId]` — a standalone route
+  outside `/dashboard`, since the visitor isn't (yet, or ever) organiser
+  staff. Each unclaimed row on the Islands tab (`subvendor-list.tsx`)
+  shows this link as copyable text; once claimed it shows a "Claimed"
+  badge instead. There's no email-sending, so getting the link to the
+  actual subvendor is manual (copy/paste into an email, WhatsApp, etc.)
+  — consistent with the rest of the app's Day-1-manual style.
+- **Claim flow** (`src/lib/actions/subvendor-claims.ts`,
+  `src/components/subvendor-invite-claim.tsx`): the invite page always
+  shows a lightweight preview (business name, island/booth ref) via the
+  `get_subvendor_invite_preview` RPC, then branches on session state —
+  not logged in → links to `/signup`/`/login` (no redirect-back
+  plumbing; the visitor re-opens the invite link after auth, a deliberate
+  simplification); logged in and unclaimed → a "Claim this listing"
+  button; logged in and already claimed by someone else → a dead-end
+  message; logged in and it's *their* claimed row → a self-edit form
+  (business name, contact info, notes, logo — never `booth_id`,
+  `booth_group_id`, or `passes_note`, which stay organiser-only).
+- **Why security-definer RPC functions instead of RLS policies**: a
+  plain `for update using (user_id is null)` policy would let any
+  authenticated visitor claim *and* rewrite organiser-controlled columns
+  on *any* unclaimed row in the same statement, since RLS is row-level,
+  not column-level. `claim_booth_group_subvendor(target_id)` and
+  `update_own_booth_group_subvendor(target_id, ...)` hard-code exactly
+  which columns each action can touch (same `security definer` pattern as
+  `is_platform_admin()`/`can_manage_show()`). Similarly,
+  `get_subvendor_invite_preview(target_id)` only ever returns the one row
+  matching the exact id passed in and only non-sensitive display fields —
+  safe to expose broadly (a visitor who hasn't claimed a row can't
+  otherwise `SELECT` it) without becoming a way to browse every unclaimed
+  subvendor row platform-wide.
+- **Organiser access is unchanged.** `can_manage_show`-gated RLS still
+  lets organiser staff read/write every subvendor row for their shows
+  (0008), claimed or not — the new `user_id = auth.uid()` policy and the
+  RPC functions are strictly additive, a second access path for the
+  subvendor themselves.
 
 ## Notes
 
@@ -213,10 +484,46 @@ above) picks which console's content renders, per the architecture doc's
   `organiser_staff` by email), and `organiser_staff`'s own "Shows" section
   in `/dashboard`, both surfaced through the existing role switcher rather
   than as separate routes. Not yet done: editing organisers/shows after
-  creation, floorplan upload (`active_floorplan_version_id` exists but
-  nothing sets it), the rest of the Organiser/Show/Booth/Application
-  domain model from the architecture doc (§2) — booth types, release
-  phases, applications, payments — and any vendor/attendee-facing UI.
+  creation.
+- **Booth types, booths, add-ons, and floorplan tagging** — done. See
+  Booth Types, Booths, Add-ons, and Floorplans above: the
+  `/dashboard/shows/[showId]/*` tab screens let
+  `platform_admin`/`organiser_staff` define booth types (category,
+  name, cost), add booths with unique per-show identifiers, define
+  show-level add-ons (optionally `mandatory`), and upload/tag a floorplan
+  image (tap-to-place with a confirm step and nudge controls). Booth
+  types and add-ons are fully editable and deletable in place — deleting a
+  booth type now also deletes the booths using it, with the count shown
+  before confirming (see above); booths are editable but not (yet)
+  individually deletable. Not yet done: deleting individual booths,
+  release phases, floorplan draft/publish reconciliation, applications
+  (including actually enforcing `mandatory` add-ons), payments, and any
+  vendor/attendee-facing UI — the rest of the Organiser/Show/Booth/
+  Application domain model from the architecture doc (§2).
+- **Booth groups (islands) and subvendors** — done, as a deliberately
+  narrow slice. See Booth Groups (Islands) and Subvendors above: the
+  `/dashboard/shows/[showId]/islands` tab lets `platform_admin`/
+  `organiser_staff` define island types (name, cost), create named
+  islands tagged with a type, place each island as its own pin on the
+  Floorplan tab, assign existing island-category booths into an island,
+  and record each island's subvendors (business name, logo, contact info,
+  notes, a free-text passes note) — a reference roster, not a booking
+  mechanic yet. An island type's `base_price` exists to "facilitate
+  booking," but there's still no `Application`/`PaymentRecord` flow to
+  actually charge it. Not yet done: `island_layout_template`
+  (auto-generating sub-slots), `BoothGroupMembership`/primary-vs-sub
+  vendor roles, and a real `PassType`/`PassAssignment` system
+  (`passes_note` stays free text until that's built).
+- **Subvendor self-signup** — done. See Subvendor Self-Signup above: a
+  subvendor can claim their own roster entry via an invite link
+  (`/subvendor-invite/[subvendorId]`) and fill in their own business
+  details, contact info, and logo, rather than that entry being
+  organiser-entered only. Claiming self-grants the `vendor` role and a
+  blank `vendor_profiles` row — the first real use of the self-serve role
+  grant described in Auth above. Not yet done: redirect-back-to-invite
+  after signup/login (the visitor re-opens the link manually today), and
+  email delivery of the invite link itself (organiser copies/shares it
+  manually).
 
 ## Before Launch
 
