@@ -52,7 +52,7 @@ export async function createAddOn(
     return { error: error.message };
   }
 
-  revalidatePath(`/dashboard/shows/${showId}`);
+  revalidatePath(`/dashboard/shows/${showId}/booth-types`);
   return { error: null };
 }
 
@@ -78,7 +78,7 @@ export async function updateAddOn(
     return { error: error.message };
   }
 
-  revalidatePath(`/dashboard/shows/${showId}`);
+  revalidatePath(`/dashboard/shows/${showId}/booth-types`);
   return { error: null };
 }
 
@@ -93,6 +93,6 @@ export async function deleteAddOn(
     return { error: error.message };
   }
 
-  revalidatePath(`/dashboard/shows/${showId}`);
+  revalidatePath(`/dashboard/shows/${showId}/booth-types`);
   return { error: null };
 }

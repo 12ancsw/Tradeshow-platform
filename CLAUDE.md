@@ -87,9 +87,9 @@ assuming an automated payment webhook will flip it.
   `organiser-form.tsx`, `assign-staff-form.tsx`, `show-list.tsx`,
   `show-form.tsx`, `booth-type-list.tsx`, `booth-type-form.tsx`,
   `booth-list.tsx`, `booth-form.tsx`, `add-on-list.tsx`, `add-on-form.tsx`,
-  `floorplan-upload-form.tsx`, `floorplan-tagger.tsx` — used across
-  `/dashboard`, `/dashboard/organisers/[organiserId]`, and
-  `/dashboard/shows/[showId]`.
+  `floorplan-upload-form.tsx`, `floorplan-tagger.tsx`, `show-tabs.tsx` —
+  used across `/dashboard`, `/dashboard/organisers/[organiserId]`, and
+  `/dashboard/shows/[showId]/*`.
 - `supabase/migrations/` — hand-applied SQL migrations (run in the
   Supabase SQL editor, or via the Supabase CLI once one is wired up)
 
@@ -192,11 +192,25 @@ above) picks which console's content renders, per the architecture doc's
 `public.booth_types`, `public.booths`, `public.add_ons`, and
 `public.floorplan_versions` (`supabase/migrations/0004_booth_types_booths_and_floorplans.sql`
 onward) let `platform_admin`/`organiser_staff` set up a show's booth
-inventory. All four live on a new per-show page,
-`/dashboard/shows/[showId]`, linked to from the show lists on both
-`/dashboard` (`organiser_staff`'s own shows) and
-`/dashboard/organisers/[organiserId]` (admin's drill-down) — same
-`ShowList` component, now clickable.
+inventory. They live across three separate per-show tab screens rather
+than one long page — `/dashboard/shows/[showId]/booth-types` (booth types
++ add-ons together, since add-ons are the other thing an organiser
+configures once per show before opening bookings), `/dashboard/shows/[showId]/booths`,
+and `/dashboard/shows/[showId]/floorplan` — sharing a layout
+(`src/app/dashboard/shows/[showId]/layout.tsx`) that fetches the show
+once, renders the show name/dates header, and renders `ShowTabs`
+(`src/components/show-tabs.tsx`, a client component using `usePathname()`
+to highlight the active tab) as a horizontal scrollable tab strip — a
+mobile-friendly "menu" rather than a sidebar, matching the rest of the
+app's no-desktop-chrome constraint. `/dashboard/shows/[showId]` itself is
+now just a redirect to the `booth-types` tab, so every existing link into
+the show detail page (`ShowList`, etc.) keeps working unchanged. Each tab
+is its own Server Component fetching only the data it renders; because
+some data feeds more than one tab (a booth's `booth_type_id` drives both
+its label on the Booths tab and its pin category on the Floorplan tab), the
+relevant Server Actions (`src/lib/actions/booth-types.ts`, `booths.ts`)
+call `revalidatePath` for every tab whose data they can affect, not just
+the tab the mutating form lives on.
 
 - **`booth_types`** — `show_id`, `name`, `category` (`island` | `standard`
   | `corner`), `base_price`. Editable and deletable in place (tap "Edit"
@@ -304,8 +318,9 @@ inventory. All four live on a new per-show page,
   than as separate routes. Not yet done: editing organisers/shows after
   creation.
 - **Booth types, booths, add-ons, and floorplan tagging** — done. See
-  Booth Types, Booths, Add-ons, and Floorplans above: `/dashboard/shows/[showId]`
-  lets `platform_admin`/`organiser_staff` define booth types (category,
+  Booth Types, Booths, Add-ons, and Floorplans above: the
+  `/dashboard/shows/[showId]/*` tab screens let
+  `platform_admin`/`organiser_staff` define booth types (category,
   name, cost), add booths with unique per-show identifiers, define
   show-level add-ons (optionally `mandatory`), and upload/tag a floorplan
   image (tap-to-place with a confirm step and nudge controls). Booth

@@ -29,7 +29,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
    - `0004_booth_types_booths_and_floorplans.sql` — `booth_types`,
      `booths`, and `floorplan_versions` tables with RLS, plus a public
      `floorplans` Storage bucket (created via this migration) with an
-     RLS-gated upload policy. Used by `/dashboard/shows/[showId]`.
+     RLS-gated upload policy. Used by `/dashboard/shows/[showId]/*`.
    - `0005_booth_type_updates.sql` — adds the `booth_types` update policy
      `0004` was missing, so booth types can be edited after creation.
    - `0006_remove_booth_type_selection_fee.sql` — drops

@@ -35,7 +35,8 @@ export async function createBooth(
     return { error: error.message };
   }
 
-  revalidatePath(`/dashboard/shows/${showId}`);
+  revalidatePath(`/dashboard/shows/${showId}/booths`);
+  revalidatePath(`/dashboard/shows/${showId}/floorplan`);
   return { error: null };
 }
 
@@ -70,7 +71,8 @@ export async function updateBooth(
     return { error: error.message };
   }
 
-  revalidatePath(`/dashboard/shows/${showId}`);
+  revalidatePath(`/dashboard/shows/${showId}/booths`);
+  revalidatePath(`/dashboard/shows/${showId}/floorplan`);
   return { error: null };
 }
 
@@ -100,6 +102,7 @@ export async function updateBoothPosition(
     return { error: error.message };
   }
 
-  revalidatePath(`/dashboard/shows/${booth.show_id}`);
+  revalidatePath(`/dashboard/shows/${booth.show_id}/floorplan`);
+  revalidatePath(`/dashboard/shows/${booth.show_id}/booths`);
   return { error: null };
 }

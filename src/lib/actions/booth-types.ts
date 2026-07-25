@@ -68,7 +68,8 @@ export async function createBoothType(
     return { error: error.message };
   }
 
-  revalidatePath(`/dashboard/shows/${showId}`);
+  revalidatePath(`/dashboard/shows/${showId}/booth-types`);
+  revalidatePath(`/dashboard/shows/${showId}/booths`);
   return { error: null };
 }
 
@@ -98,7 +99,9 @@ export async function updateBoothType(
     return { error: error.message };
   }
 
-  revalidatePath(`/dashboard/shows/${showId}`);
+  revalidatePath(`/dashboard/shows/${showId}/booth-types`);
+  revalidatePath(`/dashboard/shows/${showId}/booths`);
+  revalidatePath(`/dashboard/shows/${showId}/floorplan`);
   return { error: null };
 }
 
@@ -119,6 +122,7 @@ export async function deleteBoothType(
     return { error: error.message };
   }
 
-  revalidatePath(`/dashboard/shows/${showId}`);
+  revalidatePath(`/dashboard/shows/${showId}/booth-types`);
+  revalidatePath(`/dashboard/shows/${showId}/booths`);
   return { error: null };
 }

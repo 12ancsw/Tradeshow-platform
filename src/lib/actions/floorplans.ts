@@ -63,6 +63,6 @@ export async function uploadFloorplan(
     return { error: showError.message };
   }
 
-  revalidatePath(`/dashboard/shows/${showId}`);
+  revalidatePath(`/dashboard/shows/${showId}/floorplan`);
   return { error: null };
 }
