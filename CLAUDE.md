@@ -94,7 +94,7 @@ assuming an automated payment webhook will flip it.
   `attachIslandTypeToPhase`, `detachIslandTypeFromPhase`),
   `applications.ts` (`applyAssigned`, `applySelfSelected`), `payments.ts`
   (`submitPaymentProof`), `allocation.ts` (`allocateBoothsToApplication`,
-  `allocateIslandToApplication`, `verifyPayment`, `rejectPayment`).
+  `allocateIslandToApplication`, `verifyPayment`, `rejectApplication`).
 - `src/components/` — shared UI: `status-badge.tsx`, `organiser-list.tsx`,
   `organiser-form.tsx`, `assign-staff-form.tsx`, `show-list.tsx`,
   `show-form.tsx`, `booth-type-list.tsx`, `booth-type-form.tsx`,
@@ -575,9 +575,22 @@ what was actually asked for:
   `waived` included for a future fee-waiver flow that doesn't exist yet),
   `verified_by`/`verified_at`, `notes`. Verifying
   (`verifyPayment` in `allocation.ts`) flips the payment record, the
-  application, and its held booths/island all to `confirmed` together;
-  rejecting releases whatever was held back to `available` rather than
-  leaving it stranded on a rejected application.
+  application, and its held booths/island all to `confirmed` together.
+  **Rejecting an application** (`rejectApplication`, same file) works at
+  any stage — a still-`submitted` organiser-assigned application with
+  nothing held yet (no-op release, just marks it `rejected`), an
+  `allocated`/self-selected one still waiting on the vendor to submit
+  proof, or one where proof was submitted and found wanting — since a
+  `payment_records` row always exists from the moment an application is
+  created, regardless of stage. Whatever booths/island were held get
+  released back to `available` rather than left stranded on a rejected
+  application. Surfaced as a "Reject application" action on both halves
+  of the Applications tab's review screen (`application-review.tsx`):
+  inline on each pending-allocation card, and on each card in "Awaiting
+  Payment" (renamed from "Payment Verification Queue" — it now also lists
+  allocated applications with no proof submitted yet, not just ones
+  already awaiting verification, with "Verify" disabled until proof
+  exists but "Reject" always available).
 - **Storage**: a **non-public** `payment-proofs` bucket (unlike
   `floorplans`/`vendor-logos` — payment screenshots are sensitive),
   objects at `{show_id}/{application_id}/{random}.{ext}`. Since it's not
@@ -728,6 +741,19 @@ what was actually asked for:
   booths/island they currently have checked, via `ReadOnlyFloorplan`'s
   new `highlightedIds` prop, so they can see on the map where their picks
   actually are before submitting.
+- **Reject an application at any stage** — done. Previously an organiser
+  could only reject once a payment proof had been submitted
+  (`rejectPayment`, only reachable from the payment queue); a
+  still-`submitted` application awaiting allocation, or an `allocated`
+  one where the vendor hadn't uploaded proof yet, had no reject path at
+  all. `rejectPayment` is renamed `rejectApplication` (`allocation.ts`)
+  and now works from either half of the Applications tab's review
+  screen: a "Reject application" action on each pending-allocation card,
+  and on each "Awaiting Payment" card (renamed from "Payment
+  Verification Queue," which now also lists allocated-but-unpaid
+  applications, not just ones with proof already submitted — "Verify" is
+  disabled until proof exists, "Reject" isn't). No new migration —
+  `applications.status`'s `rejected` value already existed from `0013`.
 
 ## Before Launch
 

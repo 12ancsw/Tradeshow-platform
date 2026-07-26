@@ -36,7 +36,7 @@ export default async function ApplicationsPage({
       .from("payment_records")
       .select("application_id, amount, proof_path")
       .eq("show_id", showId)
-      .eq("status", "proof_submitted"),
+      .in("status", ["awaiting_proof", "proof_submitted"]),
   ]);
 
   const boothTypeById = new Map((boothTypes ?? []).map((type) => [type.id, type]));
@@ -147,8 +147,9 @@ export default async function ApplicationsPage({
     <section className="flex flex-col gap-3">
       <h2 className="text-lg font-semibold">Applications</h2>
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        Organiser-assigned applications waiting for specific booths/an island, and payment proofs
-        waiting to be verified.
+        Organiser-assigned applications waiting for specific booths/an island, and allocated
+        applications waiting on payment (proof submitted or not). Reject an application at either
+        stage to release whatever it&apos;s holding back to available.
       </p>
 
       <ApplicationReview

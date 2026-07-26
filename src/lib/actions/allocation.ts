@@ -120,7 +120,14 @@ export async function verifyPayment(
   return { error: null };
 }
 
-export async function rejectPayment(
+// Rejects an application at any stage -- before allocation (no booths held
+// yet, the update below is a no-op), after allocation but before the vendor
+// has submitted payment proof, or after proof was submitted and found
+// wanting. A payment_records row always exists from the moment an
+// application is created (both submit_application_assigned and
+// submit_application_self_selected insert one), so this update always finds
+// a row to reject regardless of which stage the application is at.
+export async function rejectApplication(
   applicationId: string,
   showId: string,
   notes: string,

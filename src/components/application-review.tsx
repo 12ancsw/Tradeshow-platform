@@ -5,7 +5,7 @@ import {
   allocateBoothsToApplication,
   allocateIslandToApplication,
   verifyPayment,
-  rejectPayment,
+  rejectApplication,
 } from "@/lib/actions/allocation";
 
 type BoothRequest = { boothTypeId: string; boothTypeName: string; quantity: number };
@@ -42,6 +42,8 @@ function AllocationCard({
 }) {
   const [selectedByType, setSelectedByType] = useState<Record<string, string[]>>({});
   const [selectedIslandId, setSelectedIslandId] = useState("");
+  const [rejectNotes, setRejectNotes] = useState("");
+  const [showReject, setShowReject] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -65,6 +67,15 @@ function AllocationCard({
             showId,
             Object.values(selectedByType).flat(),
           );
+      if (result.error) {
+        setError(result.error);
+      }
+    });
+  }
+
+  function confirmReject() {
+    startTransition(async () => {
+      const result = await rejectApplication(application.id, showId, rejectNotes);
       if (result.error) {
         setError(result.error);
       }
@@ -141,6 +152,43 @@ function AllocationCard({
       >
         {isPending ? "Allocating…" : "Confirm Allocation"}
       </button>
+
+      {showReject ? (
+        <div className="flex flex-col gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+          <textarea
+            value={rejectNotes}
+            onChange={(event) => setRejectNotes(event.target.value)}
+            placeholder="Rejection note (optional)"
+            rows={2}
+            className="rounded-lg border border-zinc-300 px-4 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={confirmReject}
+              disabled={isPending}
+              className="flex-1 rounded-lg bg-red-600 px-4 py-3 text-base font-medium text-white disabled:opacity-60"
+            >
+              {isPending ? "Rejecting…" : "Confirm Reject"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowReject(false)}
+              className="flex-1 rounded-lg border border-zinc-300 px-4 py-3 text-base font-medium dark:border-zinc-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowReject(true)}
+          className="text-sm text-red-600 underline dark:text-red-400"
+        >
+          Reject application
+        </button>
+      )}
     </div>
   );
 }
@@ -159,7 +207,7 @@ function PaymentQueueCard({ payment, showId }: { payment: QueuedPayment; showId:
 
   function reject() {
     startTransition(async () => {
-      const result = await rejectPayment(payment.applicationId, showId, notes);
+      const result = await rejectApplication(payment.applicationId, showId, notes);
       if (result.error) setError(result.error);
     });
   }
@@ -182,7 +230,9 @@ function PaymentQueueCard({ payment, showId }: { payment: QueuedPayment; showId:
         >
           View proof
         </a>
-      ) : null}
+      ) : (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">No proof uploaded yet.</p>
+      )}
       <textarea
         value={notes}
         onChange={(event) => setNotes(event.target.value)}
@@ -195,7 +245,7 @@ function PaymentQueueCard({ payment, showId }: { payment: QueuedPayment; showId:
         <button
           type="button"
           onClick={verify}
-          disabled={isPending}
+          disabled={isPending || !payment.proofUrl}
           className="flex-1 rounded-lg bg-black px-4 py-3 text-base font-medium text-white disabled:opacity-60 dark:bg-white dark:text-black"
         >
           Verify
@@ -248,9 +298,9 @@ export function ApplicationReview({
       </section>
 
       <section className="flex flex-col gap-3">
-        <h3 className="text-base font-semibold">Payment Verification Queue</h3>
+        <h3 className="text-base font-semibold">Awaiting Payment</h3>
         {queuedPayments.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Nothing to verify.</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Nothing awaiting payment.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {queuedPayments.map((payment) => (
