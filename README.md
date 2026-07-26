@@ -76,6 +76,16 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
      at `/dashboard/shows/[showId]/details`, and the logo is rendered
      across `/dashboard`, `/dashboard/organisers/[organiserId]`, every
      show-management tab, and `/shows`/`/shows/[showId]`.
+   - `0015_organiser_controlled_allocation_mode.sql` — adds
+     `release_phases.allocation_mode` (`organiser_allocated` |
+     `immediate_selection`) and updates `submit_application_assigned`/
+     `submit_application_self_selected` (from `0013`) to enforce it, so
+     the organiser sets per phase whether applications are
+     organiser-assigned or self-selected, instead of the applicant
+     choosing freely. Used by `/dashboard/shows/[showId]/phases` (new
+     field on the create/edit phase forms) and `/shows/[showId]` (the
+     apply form now reflects the phase's setting instead of offering a
+     choice).
 
 ### Dev server
 

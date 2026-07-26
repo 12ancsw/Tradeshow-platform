@@ -26,6 +26,21 @@ export function ReleasePhaseForm({ showId }: { showId: string }) {
       </div>
 
       <div className="flex flex-col gap-1">
+        <label htmlFor="allocation_mode" className="text-sm font-medium">
+          How booths are assigned
+        </label>
+        <select
+          id="allocation_mode"
+          name="allocation_mode"
+          defaultValue="organiser_allocated"
+          className="rounded-lg border border-zinc-300 px-4 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
+        >
+          <option value="organiser_allocated">You assign booths after reviewing applications</option>
+          <option value="immediate_selection">Applicants pick their own booth locations</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1">
         <label htmlFor="selection_fee_amount" className="text-sm font-medium">
           Selection fee ($)
         </label>
@@ -40,8 +55,8 @@ export function ReleasePhaseForm({ showId }: { showId: string }) {
           className="rounded-lg border border-zinc-300 px-3 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
         />
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Charged per booth when an applicant picks their own booth locations instead of letting
-          you assign them. Never charged for islands.
+          Only charged (per booth) when this phase lets applicants pick their own booth locations.
+          Never charged for islands.
         </p>
       </div>
 

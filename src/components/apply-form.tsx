@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { applyAssigned, applySelfSelected, type ApplyFormState } from "@/lib/actions/applications";
+import { ReadOnlyFloorplan, type Pin } from "@/components/read-only-floorplan";
 
 type OpenPhase = {
   id: string;
   name: string;
   selection_fee_amount: number;
+  allocationMode: "organiser_allocated" | "immediate_selection";
   boothTypeIds: string[];
   islandTypeIds: string[];
 };
@@ -25,6 +27,8 @@ export function ApplyForm({
   islandTypeOptions,
   availableBooths,
   availableIslands,
+  floorplanImageUrl,
+  pins,
 }: {
   showId: string;
   openPhases: OpenPhase[];
@@ -32,10 +36,11 @@ export function ApplyForm({
   islandTypeOptions: IslandTypeOption[];
   availableBooths: AvailableBooth[];
   availableIslands: AvailableIsland[];
+  floorplanImageUrl: string | null;
+  pins: Pin[];
 }) {
   const [phaseId, setPhaseId] = useState(openPhases[0]?.id ?? "");
   const [applicationType, setApplicationType] = useState<"booths" | "island">("booths");
-  const [mode, setMode] = useState<"assign" | "self">("assign");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [selectedIslandTypeId, setSelectedIslandTypeId] = useState("");
   const [selectedBoothIds, setSelectedBoothIds] = useState<string[]>([]);
@@ -52,7 +57,16 @@ export function ApplyForm({
     initialState,
   );
 
-  if (openPhases.length === 0) {
+  const phase = openPhases.find((candidate) => candidate.id === phaseId) ?? openPhases[0];
+  const mode = phase?.allocationMode === "immediate_selection" ? "self" : "assign";
+
+  const highlightedIds = useMemo(() => {
+    if (mode !== "self") return undefined;
+    if (applicationType === "booths") return new Set(selectedBoothIds);
+    return selectedIslandId ? new Set([selectedIslandId]) : new Set<string>();
+  }, [mode, applicationType, selectedBoothIds, selectedIslandId]);
+
+  if (!phase) {
     return (
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
         Not currently accepting applications.
@@ -60,7 +74,6 @@ export function ApplyForm({
     );
   }
 
-  const phase = openPhases.find((candidate) => candidate.id === phaseId) ?? openPhases[0];
   const phaseBoothTypes = boothTypeOptions.filter((type) => phase.boothTypeIds.includes(type.id));
   const phaseIslandTypes = islandTypeOptions.filter((type) =>
     phase.islandTypeIds.includes(type.id),
@@ -142,38 +155,17 @@ export function ApplyForm({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium">How should it be assigned?</span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("assign")}
-            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
-              mode === "assign"
-                ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
-                : "border-zinc-300 dark:border-zinc-700"
-            }`}
-          >
-            Organiser assigns
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("self")}
-            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
-              mode === "self"
-                ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
-                : "border-zinc-300 dark:border-zinc-700"
-            }`}
-          >
-            I&apos;ll pick my own
-          </button>
-        </div>
-        {mode === "self" && applicationType === "booths" ? (
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {`A $${phase.selection_fee_amount.toFixed(2)} selection fee applies per booth you pick yourself.`}
-          </p>
-        ) : null}
-      </div>
+      <p className="rounded-lg bg-zinc-100 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
+        {mode === "self"
+          ? applicationType === "booths"
+            ? `This phase lets you pick your own booth locations. A $${phase.selection_fee_amount.toFixed(2)} selection fee applies per booth.`
+            : "This phase lets you pick your own island — no selection fee applies to islands."
+          : "The organiser will assign your booth(s)/island after reviewing your application."}
+      </p>
+
+      {floorplanImageUrl ? (
+        <ReadOnlyFloorplan imageUrl={floorplanImageUrl} pins={pins} highlightedIds={highlightedIds} />
+      ) : null}
 
       {mode === "assign" ? (
         <form action={assignAction} className="flex flex-col gap-3">

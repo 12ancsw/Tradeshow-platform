@@ -17,6 +17,7 @@ type Phase = {
   name: string;
   status: "draft" | "open" | "closed";
   selection_fee_amount: number | string;
+  allocation_mode: "organiser_allocated" | "immediate_selection";
 };
 type BoothType = { id: string; name: string };
 type IslandType = { id: string; name: string };
@@ -27,6 +28,11 @@ const STATUS_LABELS: Record<Phase["status"], string> = {
   draft: "Draft",
   open: "Open",
   closed: "Closed",
+};
+
+const ALLOCATION_MODE_LABELS: Record<Phase["allocation_mode"], string> = {
+  organiser_allocated: "You assign booths",
+  immediate_selection: "Applicants pick their own",
 };
 
 const initialState: ReleasePhaseFormState = { error: null };
@@ -65,6 +71,21 @@ function EditPhaseForm({
           defaultValue={phase.name}
           className="rounded-lg border border-zinc-300 px-4 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
         />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`allocation_mode-${phase.id}`} className="text-sm font-medium">
+          How booths are assigned
+        </label>
+        <select
+          id={`allocation_mode-${phase.id}`}
+          name="allocation_mode"
+          defaultValue={phase.allocation_mode}
+          className="rounded-lg border border-zinc-300 px-4 py-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
+        >
+          <option value="organiser_allocated">You assign booths after reviewing applications</option>
+          <option value="immediate_selection">Applicants pick their own booth locations</option>
+        </select>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -340,7 +361,9 @@ export function ReleasePhaseManager({
                 <span className="flex flex-col">
                   <span className="font-medium">{phase.name}</span>
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {`${STATUS_LABELS[phase.status]} · $${Number(phase.selection_fee_amount).toFixed(2)} selection fee`}
+                    {phase.allocation_mode === "immediate_selection"
+                      ? `${STATUS_LABELS[phase.status]} · ${ALLOCATION_MODE_LABELS[phase.allocation_mode]} · $${Number(phase.selection_fee_amount).toFixed(2)} selection fee`
+                      : `${STATUS_LABELS[phase.status]} · ${ALLOCATION_MODE_LABELS[phase.allocation_mode]}`}
                   </span>
                 </span>
                 <div className="flex items-center gap-3">

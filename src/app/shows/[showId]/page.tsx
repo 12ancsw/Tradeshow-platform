@@ -50,7 +50,7 @@ export default async function VendorShowPage({
       .eq("show_id", showId),
     supabase
       .from("release_phases")
-      .select("id, name, selection_fee_amount")
+      .select("id, name, selection_fee_amount, allocation_mode")
       .eq("show_id", showId)
       .eq("status", "open"),
     supabase
@@ -126,6 +126,7 @@ export default async function VendorShowPage({
     id: phase.id,
     name: phase.name,
     selection_fee_amount: Number(phase.selection_fee_amount),
+    allocationMode: phase.allocation_mode as "organiser_allocated" | "immediate_selection",
     boothTypeIds: (phaseBoothTypes ?? [])
       .filter((link) => link.release_phase_id === phase.id)
       .map((link) => link.booth_type_id),
@@ -183,7 +184,7 @@ export default async function VendorShowPage({
           </div>
         </div>
 
-        {floorplanImageUrl ? (
+        {floorplanImageUrl && !user ? (
           <section className="flex flex-col gap-2">
             <h2 className="text-lg font-semibold">Floorplan</h2>
             <ReadOnlyFloorplan imageUrl={floorplanImageUrl} pins={pins} />
@@ -240,6 +241,8 @@ export default async function VendorShowPage({
               islandTypeOptions={islandTypeOptions}
               availableBooths={availableBooths}
               availableIslands={availableIslands}
+              floorplanImageUrl={floorplanImageUrl}
+              pins={pins}
             />
           ) : (
             <div className="flex flex-col gap-3 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">

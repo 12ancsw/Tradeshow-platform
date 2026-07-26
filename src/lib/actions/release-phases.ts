@@ -8,11 +8,13 @@ export type ReleasePhaseFormState = {
 };
 
 const STATUSES = ["draft", "open", "closed"] as const;
+const ALLOCATION_MODES = ["organiser_allocated", "immediate_selection"] as const;
 
 function parseReleasePhaseInput(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const feeInput = String(formData.get("selection_fee_amount") ?? "0");
   const fee = Number(feeInput);
+  const allocationModeInput = String(formData.get("allocation_mode") ?? "organiser_allocated");
 
   if (!name) {
     return { error: "Name is required." } as const;
@@ -22,7 +24,16 @@ function parseReleasePhaseInput(formData: FormData) {
     return { error: "Selection fee must be a valid non-negative number." } as const;
   }
 
-  return { error: null, name, fee } as const;
+  if (!ALLOCATION_MODES.includes(allocationModeInput as (typeof ALLOCATION_MODES)[number])) {
+    return { error: "Invalid assignment option." } as const;
+  }
+
+  return {
+    error: null,
+    name,
+    fee,
+    allocationMode: allocationModeInput as (typeof ALLOCATION_MODES)[number],
+  } as const;
 }
 
 export async function createReleasePhase(
@@ -41,6 +52,7 @@ export async function createReleasePhase(
     show_id: showId,
     name: parsed.name,
     selection_fee_amount: parsed.fee,
+    allocation_mode: parsed.allocationMode,
   });
 
   if (error) {
@@ -66,7 +78,11 @@ export async function updateReleasePhase(
   const supabase = await createClient();
   const { error } = await supabase
     .from("release_phases")
-    .update({ name: parsed.name, selection_fee_amount: parsed.fee })
+    .update({
+      name: parsed.name,
+      selection_fee_amount: parsed.fee,
+      allocation_mode: parsed.allocationMode,
+    })
     .eq("id", phaseId);
 
   if (error) {

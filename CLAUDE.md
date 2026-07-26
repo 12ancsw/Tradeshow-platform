@@ -495,6 +495,22 @@ what was actually asked for:
   `open` phase (`release_phase_booth_types`, `release_phase_island_types`
   join tables) are applyable-to; a phase's `selection_fee_amount` is the
   per-booth fee charged only when a vendor self-selects (see below).
+- **`release_phases.allocation_mode`** (`organiser_allocated` |
+  `immediate_selection`, `0015_organiser_controlled_allocation_mode.sql`)
+  — the organiser sets this per phase when creating/editing it (same
+  form as name/selection fee), not the applicant: an
+  `organiser_allocated` phase only accepts booth-type/quantity requests
+  (organiser assigns specific booths later), an `immediate_selection`
+  phase only accepts specific, currently live+available booths/an island
+  the applicant picks themselves. Originally (`0012`/`0013`) this was a
+  toggle on the apply form itself, letting a vendor pick either path on
+  any open phase — organiser feedback was that the organiser should
+  control this, not the applicant. Both vendor-facing RPC functions
+  (`submit_application_assigned`, `submit_application_self_selected`)
+  check the phase's `allocation_mode` and reject a call that doesn't
+  match it. Changing a phase's `allocation_mode` later doesn't affect
+  applications already submitted under it — `applications.is_self_selected`
+  is recorded at submission time, never re-derived from the phase.
 - **Public read access, for the first time.** Every table a vendor needs
   to browse a show (`shows`, `booth_types`, `booths`, `island_types`,
   `booth_groups`, `add_ons`) previously had organiser-only `SELECT`
@@ -508,15 +524,16 @@ what was actually asked for:
   available/held/pending_payment/confirmed/blocked lifecycle, not just a
   roster container.
 - **One choice per application, enforced server-side.** A vendor applies
-  for *either* up to 6 booths *or* exactly 1 island, never both, and
-  picks once whether the organiser assigns specific booths/an island
-  later (no fee) or they self-select specific, currently live+available
-  ones themselves right now (`release_phases.selection_fee_amount`
-  charged **per self-selected booth only — never for an island**,
-  self-selected or not). "Live+available" means `status = 'available'`
-  and placed on the floorplan (`map_x is not null`) — the same
-  availability rule drives both the "N available" counts a vendor sees
-  and what they're allowed to self-select.
+  for *either* up to 6 booths *or* exactly 1 island, never both, within
+  whichever assignment path the phase's `allocation_mode` allows: the
+  organiser assigns specific booths/an island later (no fee), or the
+  vendor self-selects specific, currently live+available ones themselves
+  right now (`release_phases.selection_fee_amount` charged **per
+  self-selected booth only — never for an island**, self-selected or
+  not). "Live+available" means `status = 'available'` and placed on the
+  floorplan (`map_x is not null`) — the same availability rule drives
+  both the "N available" counts a vendor sees and what they're allowed
+  to self-select.
 - **Why `security definer` RPC functions, not table RLS, for the vendor's
   own writes**: applying touches several tables in one atomic step
   (create the application, create its booth-type requests or lock
@@ -580,12 +597,24 @@ what was actually asked for:
   instead of category) plus booth/island type pricing and live
   availability counts, then `apply-form.tsx` if logged in (sign up/log in
   prompt otherwise, same pattern as the subvendor invite page — no
-  redirect-back after auth here either). **Self-selection is a checklist
-  of live+available booths/an island dropdown, not click-to-pick on the
-  floorplan image itself** — the floorplan tagger's write/edit machinery
-  is organiser-only tooling; building an equivalent click-to-select
-  interaction for vendors was cut from this pass as a deliberate scope
-  reduction.
+  redirect-back after auth here either). Logged out, the floorplan
+  renders once as a plain reference section above "Booth Types"; logged
+  in, that section is skipped and `ApplyForm` renders its own copy
+  instead, right alongside the application controls it's driven by.
+  **Self-selection is a checklist of live+available booths/an island
+  dropdown, not click-to-pick on the floorplan image itself** — the
+  floorplan tagger's write/edit machinery is organiser-only tooling;
+  building an equivalent click-to-select interaction for vendors was cut
+  from this pass as a deliberate scope reduction. What *is* built:
+  `ReadOnlyFloorplan` takes an optional `highlightedIds` set, and
+  `ApplyForm` feeds it whatever's currently checked/selected in the
+  checklist (recomputed via `useMemo` on every change) — so on an
+  `immediate_selection` phase, ticking a booth or picking an island
+  renders that pin larger and blue on the floorplan the applicant is
+  already looking at, without making the tiny pins themselves tap
+  targets. On an `organiser_allocated` phase the floorplan still shows
+  (status-colored, for reference), just with nothing highlighted, since
+  there's no specific booth being picked.
 - **"My Applications"** lives in the existing role-switcher
   (`home-content.tsx`, under the `vendor` context) rather than a separate
   route, listing each application's status, allocated booths/island
@@ -688,6 +717,17 @@ what was actually asked for:
   waivers, refunds, cancelling/editing an application after submission,
   `VendorFieldPolicy`/consent, and any VIP/attendee ticketing (separate
   `PassType`/`PassAssignment` track).
+- **Organiser-controlled allocation mode + floorplan selection
+  highlighting** — done (`0015_organiser_controlled_allocation_mode.sql`).
+  See `release_phases.allocation_mode` above: the organiser, not the
+  applicant, now decides per phase whether applications are
+  organiser-assigned or self-selected — the apply form's old "Organiser
+  assigns" / "I'll pick my own" toggle is gone, replaced by a read-only
+  banner reflecting the phase's setting. Also: the floorplan an applicant
+  sees while self-selecting now highlights (enlarged, blue) whatever
+  booths/island they currently have checked, via `ReadOnlyFloorplan`'s
+  new `highlightedIds` prop, so they can see on the map where their picks
+  actually are before submitting.
 
 ## Before Launch
 

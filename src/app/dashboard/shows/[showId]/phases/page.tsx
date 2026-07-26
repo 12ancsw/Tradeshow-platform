@@ -19,7 +19,7 @@ export default async function PhasesPage({
   ] = await Promise.all([
     supabase
       .from("release_phases")
-      .select("id, name, status, selection_fee_amount")
+      .select("id, name, status, selection_fee_amount, allocation_mode")
       .eq("show_id", showId)
       .order("created_at", { ascending: true }),
     supabase
