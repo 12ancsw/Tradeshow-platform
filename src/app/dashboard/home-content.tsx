@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { AppRole, UserRoleRow } from "@/lib/auth";
 import { OrganiserList } from "@/components/organiser-list";
 import { OrganiserForm } from "@/components/organiser-form";
@@ -86,12 +87,18 @@ export function HomeContent({
             Logged in as {name}, role: {roleLabel(activeRole, organiserStaffData)}
           </p>
         ) : (
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-3">
             <p className="text-lg font-medium">Logged in as {name}</p>
             <p className="max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
               You don&apos;t have any roles yet — you&apos;ll pick one (vendor or guest) when you
               apply to a show or get a ticket.
             </p>
+            <Link
+              href="/shows"
+              className="rounded-lg bg-black px-4 py-3 text-sm font-medium text-white dark:bg-white dark:text-black"
+            >
+              Browse Shows
+            </Link>
           </div>
         )}
 
@@ -139,7 +146,12 @@ export function HomeContent({
 
       {activeRole?.role === "vendor" ? (
         <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold">My Applications</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">My Applications</h2>
+            <Link href="/shows" className="text-sm text-zinc-500 underline dark:text-zinc-400">
+              Browse Shows
+            </Link>
+          </div>
           <MyApplications applications={myApplications} />
         </section>
       ) : null}
