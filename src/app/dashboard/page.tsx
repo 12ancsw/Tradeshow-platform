@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUserWithRoles } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import type { Pin } from "@/components/read-only-floorplan";
 import { logout } from "./actions";
 import { HomeContent } from "./home-content";
 
@@ -60,10 +61,13 @@ export default async function DashboardPage() {
   const showIds = [...new Set(rawApplications.map((application) => application.show_id))];
   const phaseIds = [...new Set(rawApplications.map((application) => application.release_phase_id))];
 
-  const [showsResult, phasesResult, paymentsResult, boothsResult, boothGroupsResult] =
+  const [showsResult, phasesResult, paymentsResult, boothTypesResult, boothsResult, boothGroupsResult] =
     await Promise.all([
       showIds.length > 0
-        ? supabase.from("shows").select("id, name, payment_instructions").in("id", showIds)
+        ? supabase
+            .from("shows")
+            .select("id, name, payment_instructions, active_floorplan_version_id")
+            .in("id", showIds)
         : Promise.resolve({ data: [] }),
       phaseIds.length > 0
         ? supabase.from("release_phases").select("id, name").in("id", phaseIds)
@@ -74,17 +78,20 @@ export default async function DashboardPage() {
             .select("application_id, amount, status, proof_path, notes")
             .in("application_id", applicationIds)
         : Promise.resolve({ data: [] }),
-      applicationIds.length > 0
+      showIds.length > 0
+        ? supabase.from("booth_types").select("id, show_id, category").in("show_id", showIds)
+        : Promise.resolve({ data: [] }),
+      showIds.length > 0
         ? supabase
             .from("booths")
-            .select("application_id, organiser_ref")
-            .in("application_id", applicationIds)
+            .select("id, show_id, organiser_ref, status, map_x, map_y, booth_type_id, application_id")
+            .in("show_id", showIds)
         : Promise.resolve({ data: [] }),
-      applicationIds.length > 0
+      showIds.length > 0
         ? supabase
             .from("booth_groups")
-            .select("application_id, organiser_ref")
-            .in("application_id", applicationIds)
+            .select("id, show_id, organiser_ref, status, map_x, map_y, application_id")
+            .in("show_id", showIds)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -94,18 +101,80 @@ export default async function DashboardPage() {
     (paymentsResult.data ?? []).map((payment) => [payment.application_id, payment]),
   );
 
+  const floorplanVersionIds = [
+    ...new Set(
+      (showsResult.data ?? [])
+        .map((show) => show.active_floorplan_version_id)
+        .filter((id): id is string => id !== null),
+    ),
+  ];
+
+  const { data: floorplanVersions } =
+    floorplanVersionIds.length > 0
+      ? await supabase.from("floorplan_versions").select("id, image_path").in("id", floorplanVersionIds)
+      : { data: [] };
+
+  const floorplanImageUrlByVersionId = new Map(
+    (floorplanVersions ?? []).map((version) => [
+      version.id,
+      supabase.storage.from("floorplans").getPublicUrl(version.image_path).data.publicUrl,
+    ]),
+  );
+
+  const boothTypeCategoryById = new Map(
+    (boothTypesResult.data ?? []).map((boothType) => [boothType.id, boothType.category]),
+  );
+
+  const boothPinsByShowId = new Map<string, Pin[]>();
   const boothRefsByApplicationId = new Map<string, string[]>();
+  const boothIdsByApplicationId = new Map<string, string[]>();
   for (const booth of boothsResult.data ?? []) {
+    if (boothTypeCategoryById.get(booth.booth_type_id) !== "island") {
+      const pins = boothPinsByShowId.get(booth.show_id) ?? [];
+      pins.push({
+        id: booth.id,
+        kind: "booth",
+        organiser_ref: booth.organiser_ref,
+        status: booth.status,
+        map_x: booth.map_x === null ? null : Number(booth.map_x),
+        map_y: booth.map_y === null ? null : Number(booth.map_y),
+      });
+      boothPinsByShowId.set(booth.show_id, pins);
+    }
+
     if (!booth.application_id) continue;
     const refs = boothRefsByApplicationId.get(booth.application_id) ?? [];
     refs.push(booth.organiser_ref);
     boothRefsByApplicationId.set(booth.application_id, refs);
+    const ids = boothIdsByApplicationId.get(booth.application_id) ?? [];
+    ids.push(booth.id);
+    boothIdsByApplicationId.set(booth.application_id, ids);
+  }
+
+  const islandPinsByShowId = new Map<string, Pin[]>();
+  for (const group of boothGroupsResult.data ?? []) {
+    const pins = islandPinsByShowId.get(group.show_id) ?? [];
+    pins.push({
+      id: group.id,
+      kind: "island",
+      organiser_ref: group.organiser_ref,
+      status: group.status,
+      map_x: group.map_x === null ? null : Number(group.map_x),
+      map_y: group.map_y === null ? null : Number(group.map_y),
+    });
+    islandPinsByShowId.set(group.show_id, pins);
   }
 
   const islandRefByApplicationId = new Map(
     (boothGroupsResult.data ?? [])
       .filter((group) => group.application_id)
       .map((group) => [group.application_id as string, group.organiser_ref]),
+  );
+
+  const islandIdByApplicationId = new Map(
+    (boothGroupsResult.data ?? [])
+      .filter((group) => group.application_id)
+      .map((group) => [group.application_id as string, group.id]),
   );
 
   const myApplications = await Promise.all(
@@ -119,11 +188,24 @@ export default async function DashboardPage() {
           ).data?.signedUrl ?? null
         : null;
 
+      const show = showById.get(application.show_id);
+      const floorplanImageUrl = show?.active_floorplan_version_id
+        ? (floorplanImageUrlByVersionId.get(show.active_floorplan_version_id) ?? null)
+        : null;
+      const pins = [
+        ...(boothPinsByShowId.get(application.show_id) ?? []),
+        ...(islandPinsByShowId.get(application.show_id) ?? []),
+      ];
+      const islandId = islandIdByApplicationId.get(application.id);
+      const highlightedBoothIds = islandId
+        ? [islandId]
+        : (boothIdsByApplicationId.get(application.id) ?? []);
+
       return {
         id: application.id,
         showId: application.show_id,
-        showName: showById.get(application.show_id)?.name ?? "Unknown show",
-        showPaymentInstructions: showById.get(application.show_id)?.payment_instructions ?? null,
+        showName: show?.name ?? "Unknown show",
+        showPaymentInstructions: show?.payment_instructions ?? null,
         phaseName: phaseById.get(application.release_phase_id)?.name ?? "Unknown phase",
         status: application.status,
         isSelfSelected: false,
@@ -133,6 +215,9 @@ export default async function DashboardPage() {
         paymentNotes: payment?.notes ?? null,
         boothRefs: boothRefsByApplicationId.get(application.id) ?? [],
         islandRef: islandRefByApplicationId.get(application.id) ?? null,
+        floorplanImageUrl,
+        pins,
+        highlightedBoothIds,
       };
     }),
   );

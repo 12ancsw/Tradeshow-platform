@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { AppRole, UserRoleRow } from "@/lib/auth";
+import type { Pin } from "@/components/read-only-floorplan";
 import { OrganiserList } from "@/components/organiser-list";
 import { OrganiserForm } from "@/components/organiser-form";
 import { ShowList } from "@/components/show-list";
@@ -40,6 +41,9 @@ type Application = {
   paymentNotes: string | null;
   boothRefs: string[];
   islandRef: string | null;
+  floorplanImageUrl: string | null;
+  pins: Pin[];
+  highlightedBoothIds: string[];
 };
 
 function roleKey(role: UserRoleRow) {

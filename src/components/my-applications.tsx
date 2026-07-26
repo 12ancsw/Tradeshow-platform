@@ -1,4 +1,5 @@
 import { PaymentProofForm } from "@/components/payment-proof-form";
+import { ReadOnlyFloorplan, type Pin } from "@/components/read-only-floorplan";
 
 type Application = {
   id: string;
@@ -14,6 +15,9 @@ type Application = {
   paymentNotes: string | null;
   boothRefs: string[];
   islandRef: string | null;
+  floorplanImageUrl: string | null;
+  pins: Pin[];
+  highlightedBoothIds: string[];
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -53,6 +57,14 @@ export function MyApplications({ applications }: { applications: Application[] }
           ) : (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">Not yet allocated.</p>
           )}
+
+          {application.floorplanImageUrl && application.highlightedBoothIds.length > 0 ? (
+            <ReadOnlyFloorplan
+              imageUrl={application.floorplanImageUrl}
+              pins={application.pins}
+              highlightedIds={new Set(application.highlightedBoothIds)}
+            />
+          ) : null}
 
           <p className="text-sm">{`Amount due: $${application.amount.toFixed(2)}`}</p>
 

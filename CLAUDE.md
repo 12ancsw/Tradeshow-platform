@@ -633,6 +633,14 @@ what was actually asked for:
   route, listing each application's status, allocated booths/island
   (once known), amount due, payment instructions, and a proof-upload
   form (`payment-proof-form.tsx`) once `allocated`/`payment_pending`.
+  Once a booth/island is allocated, the card also renders the show's
+  floorplan (`ReadOnlyFloorplan`, same component and `highlightedIds`
+  mechanism as the apply form) with the vendor's own booths/island
+  highlighted, so they can see on the map what they actually got — this
+  data is assembled in `/dashboard/page.tsx` (booth/island rows plus the
+  active `floorplan_versions` image, scoped to every show the vendor has
+  applied to) since `MyApplications` spans potentially multiple shows,
+  unlike the single-show apply form.
 - **Deliberate simplifications vs. the architecture doc**: no booth hold
   expiry/timeout (a `held` booth stays held until an organiser
   allocates/rejects or verifies — no background job exists to release
