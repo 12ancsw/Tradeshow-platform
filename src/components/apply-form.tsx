@@ -68,9 +68,12 @@ export function ApplyForm({
 
   if (!phase) {
     return (
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        Not currently accepting applications.
-      </p>
+      <div className="flex flex-col gap-4 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          Not currently accepting applications.
+        </p>
+        {floorplanImageUrl ? <ReadOnlyFloorplan imageUrl={floorplanImageUrl} pins={pins} /> : null}
+      </div>
     );
   }
 

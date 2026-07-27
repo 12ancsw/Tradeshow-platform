@@ -627,7 +627,11 @@ what was actually asked for:
   already looking at, without making the tiny pins themselves tap
   targets. On an `organiser_allocated` phase the floorplan still shows
   (status-colored, for reference), just with nothing highlighted, since
-  there's no specific booth being picked.
+  there's no specific booth being picked. The floorplan renders even
+  when there's currently no open phase to apply under (`ApplyForm`'s
+  "not currently accepting applications" state still shows it) — a
+  vendor should be able to see where things are on the map regardless
+  of whether they can act on it yet.
 - **"My Applications"** lives in the existing role-switcher
   (`home-content.tsx`, under the `vendor` context) rather than a separate
   route, listing each application's status, allocated booths/island
