@@ -612,9 +612,11 @@ what was actually asked for:
 - **Vendor routes** (`/shows`, `/shows/[showId]`) are the first
   vendor-facing UI in the app at all — everything built before this was
   organiser-side. `/shows/[showId]` shows a **read-only** floorplan
-  (`read-only-floorplan.tsx` — no click handlers, pins colored by status
-  instead of category) plus booth/island type pricing and live
-  availability counts, then `apply-form.tsx` if logged in (sign up/log in
+  (`read-only-floorplan.tsx` — no placement/edit handlers, pins colored by
+  status instead of category, same explicit 100–400% zoom controls plus
+  native pan as the organiser's tagger — several islands placed close
+  together otherwise overlap at 100%) plus booth/island type pricing and
+  live availability counts, then `apply-form.tsx` if logged in (sign up/log in
   prompt otherwise, same pattern as the subvendor invite page — no
   redirect-back after auth here either). Logged out, the floorplan
   renders once as a plain reference section above "Booth Types"; logged
@@ -637,7 +639,11 @@ what was actually asked for:
   when there's currently no open phase to apply under (`ApplyForm`'s
   "not currently accepting applications" state still shows it) — a
   vendor should be able to see where things are on the map regardless
-  of whether they can act on it yet.
+  of whether they can act on it yet. Island pins on `ReadOnlyFloorplan`
+  are smaller than the organiser tagger's (`h-4` vs `h-5`) — several
+  islands placed close together were covering more of the floorplan than
+  the islands themselves at 100% zoom; the zoom controls are how a
+  vendor gets precision back instead.
 - **"My Applications"** lives in the existing role-switcher
   (`home-content.tsx`, under the `vendor` context) rather than a separate
   route, listing each application's status, allocated booths/island
