@@ -94,7 +94,8 @@ assuming an automated payment webhook will flip it.
   `attachIslandTypeToPhase`, `detachIslandTypeFromPhase`),
   `applications.ts` (`applyAssigned`, `applySelfSelected`), `payments.ts`
   (`submitPaymentProof`), `allocation.ts` (`allocateBoothsToApplication`,
-  `allocateIslandToApplication`, `verifyPayment`, `rejectApplication`).
+  `allocateIslandToApplication`, `verifyPayment`, `rejectApplication`),
+  `terms.ts` (`createTerm`, `updateTerm`, `deleteTerm`, `setTermPublished`).
 - `src/components/` — shared UI: `status-badge.tsx`, `organiser-list.tsx`,
   `organiser-form.tsx`, `assign-staff-form.tsx`, `show-list.tsx`,
   `show-form.tsx`, `booth-type-list.tsx`, `booth-type-form.tsx`,
@@ -105,7 +106,8 @@ assuming an automated payment webhook will flip it.
   `subvendor-invite-claim.tsx`, `release-phase-manager.tsx`,
   `release-phase-form.tsx`, `read-only-floorplan.tsx`, `apply-form.tsx`,
   `application-review.tsx`, `my-applications.tsx`, `payment-proof-form.tsx`,
-  `show-edit-form.tsx`, `show-logo-upload-form.tsx`
+  `show-edit-form.tsx`, `show-logo-upload-form.tsx`, `term-list.tsx`,
+  `term-form.tsx`
   — used across `/dashboard`, `/dashboard/organisers/[organiserId]`,
   `/dashboard/shows/[showId]/*`, `/subvendor-invite/[subvendorId]`,
   `/shows`, and `/shows/[showId]`.
@@ -666,6 +668,36 @@ what was actually asked for:
   can't be cancelled or edited by the vendor after submission (only
   proof upload is self-service).
 
+## Terms and Conditions
+
+`public.terms_and_conditions` (`supabase/migrations/0017_terms_and_conditions.sql`)
+is an organiser-side manager only, this pass — CRUD for a show's terms,
+surfaced on a new "Terms" tab (`/dashboard/shows/[showId]/terms`, last
+in `ShowTabs`). Nothing in the vendor/attendee application flow reads
+from it yet.
+
+- **`terms_and_conditions`** — `show_id`, `type` (free text, e.g.
+  "Vendor Terms", "Attendee Terms", "Photography Policy" — deliberately
+  *not* a fixed Postgres enum: the organiser decides what categories
+  they need, the platform doesn't hard-code a list), `content` (the
+  actual text), `published_at` (nullable timestamp). Full CRUD
+  (`src/lib/actions/terms.ts`, `term-form.tsx`/`term-list.tsx`), same
+  inline edit/delete pattern as booth types and add-ons.
+- **Publishing is a manual toggle**, same pattern as
+  `release_phases.status`'s draft/open/closed — tapping "Draft — tap to
+  publish" sets `published_at` to the current moment; tapping it again
+  ("Published — tap to unpublish") clears it back to `null` rather than
+  deleting the row. The list shows the publish date once set.
+- **RLS**: organiser-only (`can_manage_show`-gated), same as booth types
+  — no public read policy yet. That's deliberate: this pass is scoped to
+  the manager only, per the "eventual" framing it was requested with.
+  Wiring an actual T&C acceptance step into `submit_application_assigned`/
+  `submit_application_self_selected` (or the equivalent future
+  attendee-ticketing flow) is future work, and would need its own public
+  read policy (scoped to `published_at is not null`, matching how
+  `release_phases` only exposes `status = 'open'` rows publicly) once
+  built.
+
 ## Notes
 
 - The `/` route is currently a connectivity test page: it calls a
@@ -778,6 +810,14 @@ what was actually asked for:
   applications, not just ones with proof already submitted — "Verify" is
   disabled until proof exists, "Reject" isn't). No new migration —
   `applications.status`'s `rejected` value already existed from `0013`.
+- **Terms & Conditions manager** — done, organiser-side only (see Terms
+  and Conditions above). A new "Terms" tab per show lets
+  `platform_admin`/`organiser_staff` create/edit/delete/publish terms
+  under an organiser-defined `type` (free text, not a fixed enum).
+  Publishing is a manual toggle, same pattern as release phase status.
+  Not yet done: any actual use of published terms in the vendor/attendee
+  application flow (acceptance step, public read access) — this pass is
+  scoped to authoring only, per how it was requested ("eventual" use).
 
 ## Before Launch
 

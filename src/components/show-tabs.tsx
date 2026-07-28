@@ -11,6 +11,7 @@ const TABS = [
   { segment: "islands", label: "Islands" },
   { segment: "phases", label: "Phases" },
   { segment: "applications", label: "Applications" },
+  { segment: "terms", label: "Terms" },
 ];
 
 export function ShowTabs({ showId }: { showId: string }) {

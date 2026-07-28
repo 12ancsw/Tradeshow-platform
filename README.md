@@ -93,6 +93,12 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
      resolves to an actual image for anyone who isn't organiser staff,
      so every vendor-facing floorplan render (`/shows/[showId]`, "My
      Applications") silently showed nothing.
+   - `0017_terms_and_conditions.sql` — `terms_and_conditions` table
+     (`show_id`, `type` — free text, organiser-defined, not a fixed
+     enum — `content`, `published_at`) with organiser-only RLS. Used by
+     the new "Terms" tab at `/dashboard/shows/[showId]/terms`. Manager
+     only, this pass — nothing in the vendor/attendee application flow
+     reads from it yet.
 
 ### Dev server
 
