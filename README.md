@@ -86,6 +86,13 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
      field on the create/edit phase forms) and `/shows/[showId]` (the
      apply form now reflects the phase's setting instead of offering a
      choice).
+   - `0016_public_read_floorplan_versions.sql` — adds a public
+     `using (true)` `SELECT` policy on `floorplan_versions`, closing a
+     gap `0012` left (every other show-setup table got one, this one was
+     missed). Without it, `shows.active_floorplan_version_id` never
+     resolves to an actual image for anyone who isn't organiser staff,
+     so every vendor-facing floorplan render (`/shows/[showId]`, "My
+     Applications") silently showed nothing.
 
 ### Dev server
 

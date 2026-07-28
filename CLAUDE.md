@@ -518,7 +518,13 @@ what was actually asked for:
   alongside them (Postgres ORs multiple permissive policies together, so
   this is additive, not a replacement). `release_phases` and its join
   tables instead expose only phases with `status = 'open'` — draft/closed
-  phases stay organiser-only-visible.
+  phases stay organiser-only-visible. `0012` missed `floorplan_versions`
+  in that list — `0016_public_read_floorplan_versions.sql` adds the same
+  `using (true)` policy there. Until it did, `shows.active_floorplan_version_id`
+  never resolved to an image for a non-organiser session (RLS silently
+  returned nothing), so every vendor-facing floorplan render — the apply
+  form and "My Applications" alike — showed nothing despite the booths/
+  islands themselves being visible via the tables `0012` did cover.
 - **`booth_groups.status`** (new column, same `booth_status` enum as
   `booths`) — an island is now a bookable unit with its own
   available/held/pending_payment/confirmed/blocked lifecycle, not just a
